@@ -1,0 +1,208 @@
+﻿Starting sync connection test...
+Attempting ping...
+c:\Users\ayansh\InternX\ba
+ckend\venv\Scripts\python.
+exe : Traceback (most 
+recent call last):
+At line:1 char:1
++ c:\Users\ayansh\InternX\
+backend\venv\Scripts\pytho
+n.exe test_conn.py  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (T  
+  raceback (most recent   
+  call last)::String)     
+[], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+  File "C:\Users\ayansh\In
+ternX\backend\test_conn.py
+", line 11, in <module>
+    client.admin.command('
+ping')
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\_csot.p
+y", line 125, in 
+csot_wrapper
+    return func(self, 
+*args, **kwargs)
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\synchro
+nous\database.py", line 
+934, in command
+    with self._client._con
+n_for_reads(read_preferenc
+e, session, 
+operation=command_name) 
+as (
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\synchro
+nous\mongo_client.py", 
+line 1885, in 
+_conn_for_reads
+    server = self._select_
+server(read_preference, 
+session, operation)
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\synchro
+nous\mongo_client.py", 
+line 1833, in 
+_select_server
+    server = 
+topology.select_server(
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\synchro
+nous\topology.py", line 
+428, in select_server
+    server = 
+self._select_server(
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\synchro
+nous\topology.py", line 
+402, in _select_server
+    servers = 
+self.select_servers(
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\synchro
+nous\topology.py", line 
+298, in select_servers
+    server_descriptions = 
+self._select_servers_loop(
+  File "C:\Users\ayansh\In
+ternX\backend\venv\lib\sit
+e-packages\pymongo\synchro
+nous\topology.py", line 
+359, in 
+_select_servers_loop
+    raise ServerSelectionT
+imeoutError(
+pymongo.errors.ServerSelec
+tionTimeoutError: SSL 
+handshake failed: ac-yvyad
+jd-shard-00-02.hernfm1.mon
+godb.net:27017: [SSL: TLSV
+1_ALERT_INTERNAL_ERROR] 
+tlsv1 alert internal 
+error (_ssl.c:1007) 
+(configured timeouts: 
+socketTimeoutMS: 
+20000.0ms, 
+connectTimeoutMS: 
+20000.0ms),SSL handshake 
+failed: ac-yvyadjd-shard-0
+0-00.hernfm1.mongodb.net:2
+7017: [SSL: TLSV1_ALERT_IN
+TERNAL_ERROR] tlsv1 alert 
+internal error 
+(_ssl.c:1007) (configured 
+timeouts: 
+socketTimeoutMS: 
+20000.0ms, 
+connectTimeoutMS: 
+20000.0ms),SSL handshake 
+failed: ac-yvyadjd-shard-0
+0-01.hernfm1.mongodb.net:2
+7017: [SSL: TLSV1_ALERT_IN
+TERNAL_ERROR] tlsv1 alert 
+internal error 
+(_ssl.c:1007) (configured 
+timeouts: 
+socketTimeoutMS: 
+20000.0ms, 
+connectTimeoutMS: 
+20000.0ms), Timeout: 
+5.0s, Topology 
+Description: 
+<TopologyDescription id: 
+6979d29bd0bd78e1953af22a, 
+topology_type: 
+ReplicaSetNoPrimary, 
+servers: 
+[<ServerDescription ('ac-y
+vyadjd-shard-00-00.hernfm1
+.mongodb.net', 27017) 
+server_type: Unknown, 
+rtt: None, 
+error=AutoReconnect('SSL 
+handshake failed: ac-yvyad
+jd-shard-00-00.hernfm1.mon
+godb.net:27017: [SSL: TLSV
+1_ALERT_INTERNAL_ERROR] 
+tlsv1 alert internal 
+error (_ssl.c:1007) 
+(configured timeouts: 
+socketTimeoutMS: 
+20000.0ms, 
+connectTimeoutMS: 
+20000.0ms)')>, 
+<ServerDescription ('ac-yv
+yadjd-shard-00-01.hernfm1.
+mongodb.net', 27017) 
+server_type: Unknown, 
+rtt: None, 
+error=AutoReconnect('SSL 
+handshake failed: ac-yvyad
+jd-shard-00-01.hernfm1.mon
+godb.net:27017: [SSL: TLSV
+1_ALERT_INTERNAL_ERROR] 
+tlsv1 alert internal 
+error (_ssl.c:1007) 
+(configured timeouts: 
+socketTimeoutMS: 
+20000.0ms, 
+connectTimeoutMS: 
+20000.0ms)')>, 
+<ServerDescription ('ac-yv
+yadjd-shard-00-02.hernfm1.
+mongodb.net', 27017) 
+server_type: Unknown, 
+rtt: None, 
+error=AutoReconnect('SSL 
+handshake failed: ac-yvyad
+jd-shard-00-02.hernfm1.mon
+godb.net:27017: [SSL: TLSV
+1_ALERT_INTERNAL_ERROR] 
+tlsv1 alert internal 
+error (_ssl.c:1007) 
+(configured timeouts: 
+socketTimeoutMS: 
+20000.0ms, 
+connectTimeoutMS: 
+20000.0ms)')>]>
+
+During handling of the 
+above exception, another 
+exception occurred:
+
+Traceback (most recent 
+call last):
+  File "C:\Users\ayansh\In
+ternX\backend\test_conn.py
+", line 14, in <module>
+    print(f"\u274c Sync 
+Connection Failed: {e}")
+  File "C:\Users\ayansh\Ap
+pData\Local\Programs\Pytho
+n\Python310\lib\encodings\
+cp1252.py", line 19, in 
+encode
+    return codecs.charmap_
+encode(input,self.errors,e
+ncoding_table)[0]
+UnicodeEncodeError: 
+'charmap' codec can't 
+encode character '\u274c' 
+in position 0: character 
+maps to <undefined>
