@@ -53,6 +53,7 @@ class ResumeData(BaseModel):
     skills: Optional[Skills] = Skills()
     experience: Optional[List[Experience]] = []
     projects: Optional[List[Project]] = []
+    achievements: Optional[List[str]] = []
     target: Optional[TargetRole] = TargetRole()
 
 class AnalysisResponse(BaseModel):

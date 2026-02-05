@@ -121,8 +121,8 @@ const defaultFormData = {
         title: '',
         description: '',
         techStack: [],
-        achievements: '',
     }],
+    achievements: [],
     target: {
         jobRole: '',
         experienceLevel: 'fresher',
@@ -199,7 +199,8 @@ function Builder() {
         if (data.personal.fullName && data.personal.email) completeness += 3
         if (data.education[0]?.degree) completeness += 3
         if (data.skills.technical.length > 0) completeness += 3
-        if (data.experience[0]?.company) completeness += 3
+        if (data.experience[0]?.company) completeness += 2
+        if (data.achievements?.length > 0) completeness += 2
         if (data.target.jobRole) completeness += 3
         score += completeness
 
@@ -219,7 +220,7 @@ function Builder() {
         // Quantification (20 points)
         const expText = data.experience.map(e => e.responsibilities.join(' ')).join(' ')
         const numberCount = (expText.match(/\d+/g) || []).length
-        const quantScore = Math.min(20, numberCount * 4)
+        const quantScore = Math.min(20, numberCount * 3 + (data.achievements?.length || 0) * 2)
         score += quantScore
 
         if (numberCount < 3) {

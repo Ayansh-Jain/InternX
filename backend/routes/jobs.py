@@ -101,6 +101,8 @@ async def list_jobs(
     location: Optional[str] = None,
     employment_type: Optional[EmploymentType] = None,
     experience: Optional[str] = None,
+    min_salary: Optional[str] = None,
+    max_salary: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     current_user: Optional[dict] = Depends(get_current_user_optional)
@@ -132,6 +134,23 @@ async def list_jobs(
     
     if experience:
         filter_query["required_experience"] = {"$regex": experience, "$options": "i"}
+    
+    # Salary filtering
+    if min_salary:
+        try:
+            min_val = int(min_salary)
+            # Find jobs where max salary is at least the requested min
+            filter_query["salary_range.max"] = {"$gte": min_val}
+        except ValueError:
+            pass
+            
+    if max_salary:
+        try:
+            max_val = int(max_salary)
+            # Find jobs where min salary is at most the requested max
+            filter_query["salary_range.min"] = {"$lte": max_val}
+        except ValueError:
+            pass
     
     # Get total count
     total = await jobs_collection.count_documents(filter_query)

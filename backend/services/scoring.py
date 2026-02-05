@@ -121,6 +121,12 @@ def _calculate_completeness(data: Dict, feedback: List) -> int:
     if experience and any(exp.get("company") or exp.get("role") for exp in experience):
         score += 2
     
+    achievements = data.get("achievements", [])
+    if achievements:
+        score += 2
+    else:
+        feedback.append({"type": "tip", "message": "Add a dedicated achievements/certifications section to boost your score"})
+    
     target = data.get("target", {})
     if target.get("jobRole"):
         score += 2
@@ -193,6 +199,12 @@ def _calculate_quantification(data: Dict, feedback: List) -> int:
     
     # Find numbers and percentages
     numbers = re.findall(r'\d+(?:\.\d+)?%?', experience_text)
+    
+    # Achievements often contain metrics too
+    achievements = data.get("achievements", [])
+    for ach in achievements:
+        numbers.extend(re.findall(r'\d+(?:\.\d+)?%?', ach))
+        
     metrics_count = len(numbers)
     
     if metrics_count >= 6:
@@ -338,6 +350,9 @@ def _collect_all_text(data: Dict) -> str:
     # Education
     for edu in data.get("education", []):
         text_parts.append(edu.get("degree", ""))
+    
+    # Achievements
+    text_parts.extend(data.get("achievements", []))
     
     # Target role
     text_parts.append(data.get("target", {}).get("jobRole", ""))

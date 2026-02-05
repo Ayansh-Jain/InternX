@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
-    CheckCircle, XCircle, Clock as ClockIcon, Eye, Building
+    CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { jobsAPI, applicationsAPI, profileAPI } from '../../services/api';
@@ -345,6 +345,62 @@ const styles = {
         maxWidth: '500px',
         width: '90%',
     },
+    filterSidebar: {
+        position: 'fixed',
+        right: 0,
+        top: '73px',
+        bottom: 0,
+        width: '300px',
+        background: 'white',
+        boxShadow: '-4px 0 20px rgba(0,0,0,0.05)',
+        zIndex: 90,
+        padding: '24px',
+        overflowY: 'auto',
+        transform: 'translateX(100%)',
+        transition: 'transform 0.3s ease',
+    },
+    filterSidebarOpen: {
+        transform: 'translateX(0)',
+    },
+    filterGroup: {
+        marginBottom: '20px',
+    },
+    filterLabel: {
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: '8px',
+        display: 'block',
+    },
+    filterInput: {
+        width: '100%',
+        padding: '10px',
+        fontSize: '14px',
+        border: '1px solid #E5E7EB',
+        borderRadius: '8px',
+        outline: 'none',
+    },
+    filterSelect: {
+        width: '100%',
+        padding: '10px',
+        fontSize: '14px',
+        border: '1px solid #E5E7EB',
+        borderRadius: '8px',
+        outline: 'none',
+        background: 'white',
+    },
+    applyFiltersBtn: {
+        width: '100%',
+        padding: '12px',
+        background: '#3A4B41',
+        color: '#E6CFA6',
+        border: 'none',
+        borderRadius: '8px',
+        fontSize: '14px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        marginTop: '20px',
+    },
 };
 
 function SearcherDashboard() {
@@ -356,18 +412,49 @@ function SearcherDashboard() {
     const [applications, setApplications] = useState([]);
     const [savedJobs, setSavedJobs] = useState([]);
     const [score, setScore] = useState(null);
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState({
+        jobRole: '',
+        location: '',
+        employmentType: '',
+        minSalary: '',
+        maxSalary: '',
+        experience: ''
+    });
     const [searchQuery, setSearchQuery] = useState('');
     const [applyingTo, setApplyingTo] = useState(null);
+    const [typingTimeout, setTypingTimeout] = useState(null);
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [activeTab]);
+
+    // Debounce search
+    useEffect(() => {
+        if (typingTimeout) clearTimeout(typingTimeout);
+        const timeout = setTimeout(() => {
+            if (activeTab === 'browse') loadData();
+        }, 500);
+        setTypingTimeout(timeout);
+    }, [searchQuery]);
 
     const loadData = async () => {
         setLoading(true);
         try {
+            const params = { limit: 50 };
+
+            if (activeTab === 'browse') {
+                if (searchQuery) params.search = searchQuery;
+                if (filters.location) params.location = filters.location;
+                if (filters.employmentType) params.employment_type = filters.employmentType;
+                if (filters.minSalary) params.min_salary = filters.minSalary;
+                if (filters.maxSalary) params.max_salary = filters.maxSalary;
+                if (filters.experience) params.experience = filters.experience;
+                if (filters.jobRole) params.search = filters.jobRole; // Combine with search or specific param if available
+            }
+
             const [jobsRes, appsRes, scoreRes] = await Promise.all([
-                jobsAPI.list({ limit: 50 }),
+                jobsAPI.list(params),
                 applicationsAPI.list({ limit: 50 }),
                 profileAPI.getScore().catch(() => ({ data: { total_score: 0 } }))
             ]);
@@ -379,6 +466,28 @@ function SearcherDashboard() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleFilterChange = (key, value) => {
+        setFilters(prev => ({ ...prev, [key]: value }));
+    };
+
+    const applyFilters = () => {
+        loadData();
+        setShowFilters(false);
+    };
+
+    const clearFilters = () => {
+        setFilters({
+            jobRole: '',
+            location: '',
+            employmentType: '',
+            minSalary: '',
+            maxSalary: '',
+            experience: ''
+        });
+        setSearchQuery('');
+        setTimeout(loadData, 0); // Trigger reload with cleared state
     };
 
     const handleLogout = async () => {
@@ -423,12 +532,6 @@ function SearcherDashboard() {
             default: return { icon: ClockIcon, color: '#6B7280', bg: '#F3F4F6', label: status };
         }
     };
-
-    const filteredJobs = jobs.filter(j =>
-        j.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        j.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        j.required_skills?.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
 
     return (
         <div style={styles.dashboard}>
@@ -484,25 +587,53 @@ function SearcherDashboard() {
                                     <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
                                     <input
                                         type="text"
-                                        placeholder="Search jobs by title, location, or skills..."
+                                        placeholder="Search jobs by title or skills..."
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
-                                        style={{ ...styles.searchInput, paddingLeft: '44px' }}
+                                        style={{ ...styles.searchInput, paddingLeft: '44px', paddingRight: '120px' }}
                                     />
+                                    <button
+                                        style={{
+                                            position: 'absolute',
+                                            right: '8px',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '8px 16px',
+                                            background: Object.values(filters).some(Boolean) ? '#E6CFA6' : '#F3F4F6',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: '500',
+                                            color: '#374151'
+                                        }}
+                                        onClick={() => setShowFilters(!showFilters)}
+                                    >
+                                        <Filter size={16} /> Filters
+                                    </button>
                                 </div>
 
                                 {loading ? (
                                     <div style={styles.loading}>
                                         <div style={styles.spinner} />
                                     </div>
-                                ) : filteredJobs.length === 0 ? (
+                                ) : jobs.length === 0 ? (
                                     <div style={styles.emptyState}>
                                         <Briefcase size={40} color="#9CA3AF" />
                                         <h3 style={{ marginTop: '16px', color: '#374151' }}>No jobs found</h3>
-                                        <p>Try adjusting your search criteria</p>
+                                        <p>Try adjusting your search or filters</p>
+                                        <button
+                                            onClick={clearFilters}
+                                            style={{ ...styles.actionBtn, ...styles.secondaryBtn, marginTop: '12px' }}
+                                        >
+                                            Clear All Filters
+                                        </button>
                                     </div>
                                 ) : (
-                                    filteredJobs.map(job => {
+                                    jobs.map(job => {
                                         const matchColors = getMatchColor(job.match_percentage || 0);
                                         const applied = isApplied(job.id);
                                         return (
@@ -695,6 +826,108 @@ function SearcherDashboard() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Filter Sidebar */}
+            <div style={{
+                ...styles.filterSidebar,
+                ...(showFilters ? styles.filterSidebarOpen : {})
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#3A4B41' }}>Filters</h3>
+                    <button
+                        onClick={() => setShowFilters(false)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280' }}
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div style={styles.filterGroup}>
+                    <label style={styles.filterLabel}>Job Role</label>
+                    <input
+                        style={styles.filterInput}
+                        placeholder="e.g. Frontend Developer"
+                        value={filters.jobRole}
+                        onChange={(e) => handleFilterChange('jobRole', e.target.value)}
+                    />
+                </div>
+
+                <div style={styles.filterGroup}>
+                    <label style={styles.filterLabel}>Location</label>
+                    <input
+                        style={styles.filterInput}
+                        placeholder="e.g. Remote, New York"
+                        value={filters.location}
+                        onChange={(e) => handleFilterChange('location', e.target.value)}
+                    />
+                </div>
+
+                <div style={styles.filterGroup}>
+                    <label style={styles.filterLabel}>Employment Type</label>
+                    <select
+                        style={styles.filterSelect}
+                        value={filters.employmentType}
+                        onChange={(e) => handleFilterChange('employmentType', e.target.value)}
+                    >
+                        <option value="">Any</option>
+                        <option value="full-time">Full-time</option>
+                        <option value="part-time">Part-time</option>
+                        <option value="contract">Contract</option>
+                        <option value="internship">Internship</option>
+                    </select>
+                </div>
+
+                <div style={styles.filterGroup}>
+                    <label style={styles.filterLabel}>Salary Range</label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                            type="number"
+                            style={styles.filterInput}
+                            placeholder="Min"
+                            value={filters.minSalary}
+                            onChange={(e) => handleFilterChange('minSalary', e.target.value)}
+                        />
+                        <input
+                            type="number"
+                            style={styles.filterInput}
+                            placeholder="Max"
+                            value={filters.maxSalary}
+                            onChange={(e) => handleFilterChange('maxSalary', e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div style={styles.filterGroup}>
+                    <label style={styles.filterLabel}>Experience Level</label>
+                    <select
+                        style={styles.filterSelect}
+                        value={filters.experience}
+                        onChange={(e) => handleFilterChange('experience', e.target.value)}
+                    >
+                        <option value="">Any</option>
+                        <option value="Entry Level">Entry Level</option>
+                        <option value="Mid Level">Mid Level</option>
+                        <option value="Senior Level">Senior Level</option>
+                    </select>
+                </div>
+
+                <button style={styles.applyFiltersBtn} onClick={applyFilters}>
+                    Apply Filters
+                </button>
+
+                <button
+                    onClick={clearFilters}
+                    style={{
+                        ...styles.applyFiltersBtn,
+                        background: 'transparent',
+                        color: '#6B7280',
+                        border: '1px solid #E5E7EB',
+                        marginTop: '12px'
+                    }}
+                >
+                    Clear All
+                </button>
             </div>
 
             {/* Apply Modal */}

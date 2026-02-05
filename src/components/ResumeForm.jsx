@@ -14,7 +14,8 @@ import {
     ChevronRight,
     X,
     Sparkles,
-    CheckCircle2
+    CheckCircle2,
+    Trophy
 } from 'lucide-react'
 import AnimatedButton from './AnimatedButton.jsx'
 
@@ -281,7 +282,8 @@ const steps = [
     { id: 3, label: 'Skills', icon: <Lightbulb size={18} /> },
     { id: 4, label: 'Experience', icon: <Briefcase size={18} /> },
     { id: 5, label: 'Projects', icon: <Rocket size={18} /> },
-    { id: 6, label: 'Target Role', icon: <Target size={18} /> },
+    { id: 6, label: 'Achievements', icon: <Trophy size={18} /> },
+    { id: 7, label: 'Target Role', icon: <Target size={18} /> },
 ]
 
 const slideVariants = {
@@ -317,7 +319,7 @@ function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
     }
 
     const nextStep = () => {
-        if (currentStep < 6) {
+        if (currentStep < 7) {
             setDirection(1)
             setCurrentStep(currentStep + 1)
         }
@@ -725,8 +727,8 @@ function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
             case 5:
                 return (
                     <div>
-                        <h3 style={styles.sectionTitle}>PROJECTS & ACHIEVEMENTS</h3>
-                        <p style={styles.sectionSubtitle}>Showcase your notable projects and certifications</p>
+                        <h3 style={styles.sectionTitle}>PROJECTS</h3>
+                        <p style={styles.sectionSubtitle}>Showcase your notable work and projects</p>
 
                         {(watchedData.projects || []).map((proj, index) => (
                             <div key={index} style={styles.arrayItem}>
@@ -781,15 +783,6 @@ function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
                                         />
                                     </div>
 
-                                    <div style={{ ...styles.formGroup, gridColumn: '1 / -1' }}>
-                                        <label style={styles.label}>Achievements / Certifications</label>
-                                        <input
-                                            style={styles.input}
-                                            placeholder="Won 1st place in hackathon, AWS Certified..."
-                                            value={proj.achievements || ''}
-                                            onChange={(e) => updateArrayItem('projects', index, 'achievements', e.target.value)}
-                                        />
-                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -797,7 +790,7 @@ function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
                         <button
                             type="button"
                             style={styles.addButton}
-                            onClick={() => addArrayItem('projects', { title: '', description: '', techStack: [], achievements: '' })}
+                            onClick={() => addArrayItem('projects', { title: '', description: '', techStack: [] })}
                         >
                             <Plus size={18} /> Add Another Project
                         </button>
@@ -805,6 +798,31 @@ function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
                 )
 
             case 6:
+                return (
+                    <div>
+                        <h3 style={styles.sectionTitle}>ACHIEVEMENTS & CERTIFICATIONS</h3>
+                        <p style={styles.sectionSubtitle}>Add your notable honors, awards, and industry certifications</p>
+
+                        <div style={styles.formGroup}>
+                            <label style={styles.label}>Achievements (press Enter to add)</label>
+                            <TagInput
+                                tags={watchedData.achievements || []}
+                                onAdd={(value) => addTag('achievements', value)}
+                                onRemove={(index) => removeTag('achievements', index)}
+                                placeholder="e.g., Won Regional Hackathon 2023, AWS Cloud Practitioner..."
+                            />
+                        </div>
+
+                        <div style={{ marginTop: '24px', padding: '16px', background: '#F9FAFB', borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                            <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>Pro Tip for ATS:</h4>
+                            <p style={{ fontSize: '13px', color: '#6B7280', lineHeight: '1.5' }}>
+                                Include certifications that match the keywords in the job description. Achievements that quantify your impact (e.g., "Increased sales by 20%") are highly valued by recruiters.
+                            </p>
+                        </div>
+                    </div>
+                )
+
+            case 7:
                 return (
                     <div>
                         <h3 style={styles.sectionTitle}>TARGET JOB ROLE</h3>
@@ -925,7 +943,7 @@ function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
                     Previous
                 </AnimatedButton>
 
-                {currentStep < 6 ? (
+                {currentStep < 7 ? (
                     <AnimatedButton
                         variant="primary"
                         onClick={nextStep}

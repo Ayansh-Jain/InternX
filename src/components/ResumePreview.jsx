@@ -168,8 +168,9 @@ function ResumePreview({ data, template = 'classic' }) {
     const hasSkills = data.skills?.technical?.length > 0 || data.skills?.tools?.length > 0
     const hasExperience = data.experience?.some(exp => exp.company || exp.role)
     const hasProjects = data.projects?.some(proj => proj.title)
+    const hasAchievements = data.achievements?.length > 0
 
-    if (!hasPersonalInfo && !hasEducation && !hasSkills && !hasExperience && !hasProjects) {
+    if (!hasPersonalInfo && !hasEducation && !hasSkills && !hasExperience && !hasProjects && !hasAchievements) {
         return (
             <div id="resume-preview" style={{ ...styles.preview, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -314,11 +315,20 @@ function ResumePreview({ data, template = 'classic' }) {
                             {proj.description && (
                                 <p style={{ ...styles.bullet, margin: '4px 0' }}>{proj.description}</p>
                             )}
-                            {proj.achievements && (
-                                <p style={{ ...styles.bullet, fontStyle: 'italic' }}>{proj.achievements}</p>
-                            )}
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Achievements */}
+            {hasAchievements && (
+                <div style={styles.section}>
+                    <h2 style={styles.sectionTitle}>Achievements & Certifications</h2>
+                    <ul style={styles.bulletList}>
+                        {data.achievements.map((achievement, index) => (
+                            <li key={index} style={styles.bullet}>{achievement}</li>
+                        ))}
+                    </ul>
                 </div>
             )}
         </motion.div>
