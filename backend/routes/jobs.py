@@ -10,7 +10,7 @@ from typing import Optional, List
 from models.user import UserRole
 from models.job import (
     JobCreate, JobUpdate, JobResponse, JobListResponse, 
-    JobStatus, SalaryRange, JobStats, EmploymentType
+    JobStatus, SalaryRange, JobStats, EmploymentType, MatchDetails
 )
 from auth.dependencies import get_current_user, require_job_provider, get_current_user_optional
 from database import Database, JOBS_COLLECTION, USERS_COLLECTION, APPLICATIONS_COLLECTION
@@ -18,7 +18,7 @@ from database import Database, JOBS_COLLECTION, USERS_COLLECTION, APPLICATIONS_C
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
 
-def job_to_response(job: dict, provider: dict = None, match_percentage: int = None) -> JobResponse:
+def job_to_response(job: dict, provider: dict = None, match_details: MatchDetails = None) -> JobResponse:
     """Convert MongoDB job document to JobResponse."""
     return JobResponse(
         id=str(job["_id"]),
@@ -35,30 +35,53 @@ def job_to_response(job: dict, provider: dict = None, match_percentage: int = No
         application_deadline=job.get("application_deadline"),
         status=JobStatus(job["status"]),
         stats=JobStats(**job.get("stats", {"views": 0, "applications": 0})),
-        match_percentage=match_percentage,
+        match_percentage=match_details.score if match_details else None,
+        match_details=match_details,
         created_at=job["created_at"]
     )
 
 
-def calculate_match_percentage(user: dict, job: dict) -> int:
-    """Calculate match percentage between user skills and job requirements."""
+def calculate_match_details(user: dict, job: dict) -> Optional[MatchDetails]:
+    """Calculate match details between user skills and job requirements."""
     if not user:
-        return 0
+        return None
     
-    user_skills = set()
+    user_skills_raw = []
     resume_data = user.get("profile", {}).get("resumeData")
     if resume_data:
         skills = resume_data.get("skills", {})
-        user_skills.update([s.lower() for s in skills.get("technical", [])])
-        user_skills.update([s.lower() for s in skills.get("tools", [])])
+        user_skills_raw.extend(skills.get("technical", []))
+        user_skills_raw.extend(skills.get("tools", []))
+        user_skills_raw.extend(skills.get("soft", []))
     
-    job_skills = set([s.lower() for s in job.get("required_skills", [])])
+    # Normalize function for skills
+    def normalize(s):
+        return re.sub(r'[^a-zA-Z0-9]', '', s.lower())
     
-    if not job_skills:
-        return 75  # Default if no requirements
+    user_skills_norm = set([normalize(s) for s in user_skills_raw if s])
+    job_skills_raw = job.get("required_skills", [])
     
-    matched = user_skills.intersection(job_skills)
-    return min(100, int((len(matched) / len(job_skills)) * 100))
+    if not job_skills_raw:
+        return MatchDetails(score=100, matched_skills=[], missing_skills=[])
+    
+    matched_skills = []
+    missing_skills = []
+    
+    for skill in job_skills_raw:
+        skill_norm = normalize(skill)
+        # Check for exact normalized match OR if the requirement is a substring of user skills (e.g. "React" matches "React.js")
+        if any(skill_norm in normalize(us) or normalize(us) in skill_norm for us in user_skills_raw if us):
+            matched_skills.append(skill)
+        else:
+            missing_skills.append(skill)
+            
+    score = int((len(matched_skills) / len(job_skills_raw)) * 100) if job_skills_raw else 100
+    
+    return MatchDetails(
+        score=min(100, score),
+        matched_skills=matched_skills,
+        missing_skills=missing_skills
+    )
 
 
 @router.post("/", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
@@ -164,8 +187,8 @@ async def list_jobs(
     job_responses = []
     for job in jobs:
         provider = await users_collection.find_one({"_id": ObjectId(job["provider_id"])})
-        match_pct = calculate_match_percentage(current_user, job) if current_user else None
-        job_responses.append(job_to_response(job, provider, match_pct))
+        match_details = calculate_match_details(current_user, job) if current_user else None
+        job_responses.append(job_to_response(job, provider, match_details))
     
     return JobListResponse(
         jobs=job_responses,
@@ -202,7 +225,7 @@ async def list_my_jobs(
     jobs = await cursor.to_list(length=limit)
     
     return JobListResponse(
-        jobs=[job_to_response(job, current_user) for job in jobs],
+        jobs=[job_to_response(job, current_user, None) for job in jobs],
         total=total,
         page=page,
         limit=limit
@@ -245,9 +268,9 @@ async def get_job(
     )
     
     provider = await users_collection.find_one({"_id": ObjectId(job["provider_id"])})
-    match_pct = calculate_match_percentage(current_user, job) if current_user else None
+    match_details = calculate_match_details(current_user, job) if current_user else None
     
-    return job_to_response(job, provider, match_pct)
+    return job_to_response(job, provider, match_details)
 
 
 @router.put("/{job_id}", response_model=JobResponse)

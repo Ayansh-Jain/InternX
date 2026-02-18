@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
 from services.scoring import calculate_resume_score
 from services.generator import optimize_resume_content
 from services.grammar import check_grammar
+from services.parser import parse_resume_pdf
 
 router = APIRouter()
 
@@ -142,3 +143,23 @@ async def check_grammar_endpoint(data: ResumeData):
     """
     issues = check_grammar(data.model_dump())
     return {"issues": issues}
+
+
+@router.post("/parse-resume")
+async def parse_resume_endpoint(file: UploadFile = File(...)):
+    """
+    Upload a resume PDF, parse its contents, and return structured JSON.
+    """
+    try:
+        contents = await file.read()
+        parsed_data = parse_resume_pdf(contents)
+        
+        return {
+            "success": True,
+            "data": parsed_data
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to parse resume: {str(e)}"
+        }

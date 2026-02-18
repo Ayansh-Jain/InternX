@@ -77,6 +77,12 @@ class JobInDB(BaseModel):
         from_attributes = True
 
 
+class MatchDetails(BaseModel):
+    score: int
+    matched_skills: List[str]
+    missing_skills: List[str]
+
+
 class JobResponse(BaseModel):
     id: str
     provider_id: str
@@ -93,6 +99,7 @@ class JobResponse(BaseModel):
     status: JobStatus
     stats: JobStats
     match_percentage: Optional[int] = None  # Calculated for job searchers
+    match_details: Optional[MatchDetails] = None
     created_at: datetime
 
     class Config:
