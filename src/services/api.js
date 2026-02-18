@@ -90,6 +90,7 @@ export const jobsAPI = {
     update: (id, data) => api.put(`/jobs/${id}`, data),
     delete: (id) => api.delete(`/jobs/${id}`),
     getApplicants: (id, params) => api.get(`/jobs/${id}/applicants`, { params }),
+    predictMarket: (data) => api.post('/jobs/predict-market', data),
 };
 
 // Applications API

@@ -73,6 +73,7 @@ class UserInDB(BaseModel):
     status: UserStatus
     profile: UserProfile
     score: UserScore
+    embedding: Optional[List[float]] = None
     created_at: datetime
     updated_at: datetime
 

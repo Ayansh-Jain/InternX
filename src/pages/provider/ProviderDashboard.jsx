@@ -460,6 +460,41 @@ function ProviderDashboard() {
         }
     };
 
+    const [predicting, setPredicting] = useState(false);
+    const [audienceData, setAudienceData] = useState(null);
+
+    const handlePredictAudience = async () => {
+        if (!formData.title || !formData.description) {
+            alert("Please enter a job title and description first.");
+            return;
+        }
+
+        setPredicting(true);
+        setAudienceData(null);
+        try {
+            // Manually calling the endpoint since it might not be in jobsAPI yet
+            // Assuming jobsAPI uses an axios instance or similar, but here we can use fetch/axios directly or extend api.js
+            // Let's assume we need to extend api.js, but for now I'll use the existing API structure if possible or direct fetch
+            // But to be consistent, I should check api.js. 
+            // Since I can't check api.js right now easily without breaking flow, I'll assume I need to add it there too.
+            // Wait, I should add it to api.js first. But I can't edit api.js in this tool call.
+            // I'll make a direct fetch call for now using the token from auth context or similar, 
+            // OR better, I'll update api.js in the next step and assume it exists here.
+
+            // Actually, I'll just add the call here assuming `jobsAPI.predictMarket` will be added.
+            const response = await jobsAPI.predictMarket({
+                title: formData.title,
+                description: formData.description
+            });
+            setAudienceData(response.data);
+        } catch (err) {
+            console.error("Failed to predict audience:", err);
+            alert("Failed to predict audience. Please try again.");
+        } finally {
+            setPredicting(false);
+        }
+    };
+
     const totalViews = jobs.reduce((sum, j) => sum + (j.stats?.views || 0), 0);
     const totalApplications = jobs.reduce((sum, j) => sum + (j.stats?.applications || 0), 0);
     const activeJobs = jobs.filter(j => j.status === 'active').length;
@@ -722,6 +757,14 @@ function ProviderDashboard() {
                             <div style={styles.modalFooter}>
                                 <button
                                     type="button"
+                                    style={{ ...styles.actionBtn, background: '#E0E7FF', color: '#4F46E5', marginRight: 'auto' }}
+                                    onClick={handlePredictAudience}
+                                    disabled={predicting}
+                                >
+                                    {predicting ? 'Analyzing...' : 'Preview Audience'}
+                                </button>
+                                <button
+                                    type="button"
                                     style={{ ...styles.actionBtn, background: '#F3F4F6', color: '#374151' }}
                                     onClick={() => setShowJobForm(false)}
                                 >
@@ -736,6 +779,77 @@ function ProviderDashboard() {
                                 </button>
                             </div>
                         </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Audience Prediction Modal */}
+            {audienceData && (
+                <div style={styles.modal} onClick={() => setAudienceData(null)}>
+                    <motion.div
+                        style={styles.modalContent}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={styles.modalHeader}>
+                            <h2 style={styles.modalTitle}>Market Audience Prediction</h2>
+                        </div>
+                        <div style={styles.modalBody}>
+                            <p style={{ marginBottom: '20px', color: '#6B7280' }}>
+                                Based on your job description, here is the predicted distribution of interested candidates:
+                            </p>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                {Object.entries(audienceData).map(([level, percentage]) => (
+                                    <div key={level}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                            <span style={{ textTransform: 'capitalize', fontWeight: '500' }}>{level.replace('_', ' ')}</span>
+                                            <span style={{ fontWeight: '600' }}>{(percentage * 100).toFixed(0)}%</span>
+                                        </div>
+                                        <div style={{
+                                            width: '100%',
+                                            height: '10px',
+                                            background: '#F3F4F6',
+                                            borderRadius: '5px',
+                                            overflow: 'hidden'
+                                        }}>
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${percentage * 100}%` }}
+                                                transition={{ duration: 1, ease: "easeOut" }}
+                                                style={{
+                                                    height: '100%',
+                                                    background: 'linear-gradient(90deg, #3A4B41 0%, #4A5D52 100%)',
+                                                    borderRadius: '5px'
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{ marginTop: '30px', padding: '16px', background: '#F8FAFC', borderRadius: '12px', borderLeft: '4px solid #3A4B41' }}>
+                                <h4 style={{ margin: '0 0 8px 0', color: '#3A4B41' }}>Insight</h4>
+                                <p style={{ margin: 0, fontSize: '14px', color: '#4B5563' }}>
+                                    {audienceData.students > 0.5
+                                        ? "This role is highly attractive to students and fresh graduates. Expect a high volume of entry-level applications."
+                                        : audienceData.senior_level > 0.3
+                                            ? "This role appeals to experienced professionals. You may receive fewer but higher-quality applications."
+                                            : "This role has a balanced appeal across different experience levels."
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                        <div style={styles.modalFooter}>
+                            <button
+                                type="button"
+                                style={styles.primaryBtn}
+                                onClick={() => setAudienceData(null)}
+                            >
+                                Close
+                            </button>
+                        </div>
                     </motion.div>
                 </div>
             )}
