@@ -139,12 +139,27 @@ function Builder() {
     const [isAnalyzing, setIsAnalyzing] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
+    const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false)
+
     // Load user data if authenticated
     useEffect(() => {
-        if (isAuthenticated && user?.profile?.resumeData) {
-            setFormData(user.profile.resumeData)
+        if (isAuthenticated && user && !hasLoadedInitialData) {
+            console.log('Builder: Loading initial user data', user.profile?.resumeData);
+            const profileData = user.profile?.resumeData || defaultFormData;
+
+            // Merge account info into personal if not set
+            const mergedData = {
+                ...profileData,
+                personal: {
+                    ...profileData.personal,
+                    fullName: profileData.personal?.fullName || user.profile?.fullName || '',
+                    email: profileData.personal?.email || user.email || '',
+                }
+            };
+            setFormData(mergedData);
+            setHasLoadedInitialData(true);
         }
-    }, [isAuthenticated, user])
+    }, [isAuthenticated, user, hasLoadedInitialData])
 
     const handleFormChange = useCallback((newData) => {
         setFormData(newData)
@@ -335,6 +350,7 @@ function Builder() {
                     >
                         <div style={styles.card}>
                             <ResumeForm
+                                key={hasLoadedInitialData ? 'loaded' : 'initial'}
                                 formData={formData}
                                 onChange={handleFormChange}
                                 onGenerate={handleGenerateResume}

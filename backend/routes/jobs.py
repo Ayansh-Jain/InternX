@@ -4,6 +4,7 @@ Job routes for CRUD operations and job management.
 
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from datetime import datetime
+import re
 from bson import ObjectId
 from typing import Optional, List
 
@@ -54,9 +55,15 @@ def calculate_match_details(user: dict, job: dict) -> Optional[MatchDetails]:
         user_skills_raw.extend(skills.get("tools", []))
         user_skills_raw.extend(skills.get("soft", []))
     
-    # Normalize function for skills
+    # Normalize function for skills (preserves tech-specific symbols)
     def normalize(s):
-        return re.sub(r'[^a-zA-Z0-9]', '', s.lower())
+        if not s: return ""
+        # Keep letters, numbers, +, #, and .
+        clean = re.sub(r'[^a-zA-Z0-9+#.]', '', s.lower())
+        # Remove trailing dots if they aren't part of common tech (like .NET)
+        if clean.endswith('.') and not clean.endswith('.net'):
+            clean = clean[:-1]
+        return clean
     
     user_skills_norm = set([normalize(s) for s in user_skills_raw if s])
     job_skills_raw = job.get("required_skills", [])

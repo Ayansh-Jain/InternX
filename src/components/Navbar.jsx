@@ -333,6 +333,10 @@ function Navbar() {
                                             <Settings size={16} />
                                             Dashboard
                                         </button>
+                                        <button style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate('/profile'); }}>
+                                            <User size={16} />
+                                            My Profile
+                                        </button>
                                         <button
                                             style={{ ...styles.dropdownItem, ...styles.dropdownItemDanger }}
                                             onClick={handleLogout}

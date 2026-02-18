@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -15,7 +15,9 @@ import {
     X,
     Sparkles,
     CheckCircle2,
-    Trophy
+    Trophy,
+    Upload,
+    Loader2
 } from 'lucide-react'
 import AnimatedButton from './AnimatedButton.jsx'
 
@@ -304,10 +306,14 @@ const slideVariants = {
 function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
     const [currentStep, setCurrentStep] = useState(1)
     const [direction, setDirection] = useState(0)
+    const [isParsing, setIsParsing] = useState(false)
 
-    const { register, handleSubmit, watch, setValue, getValues } = useForm({
+    const { register, handleSubmit, watch, setValue, getValues, reset } = useForm({
         defaultValues: formData,
     })
+
+    // Data fetching and sync logic is handled by the key prop in parent (Builder.jsx)
+    // which forces a re-mount when initial data is loaded from the profile.
 
     // Watch all form changes and propagate to parent
     const watchedData = watch()
@@ -405,13 +411,85 @@ function ResumeForm({ formData, onChange, onGenerate, isGenerating }) {
         handleInputChange('experience', updatedExp)
     }
 
+    const handleImportResume = async (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        setIsParsing(true)
+        const formData = new FormData()
+        formData.append('file', file)
+
+        try {
+            const response = await fetch('http://localhost:8000/api/parse-resume', {
+                method: 'POST',
+                body: formData,
+            })
+            const result = await response.json()
+
+            if (result.success) {
+                // Merge parsed data with current form data
+                const updatedData = {
+                    ...getValues(),
+                    ...result.data,
+                    personal: { ...getValues().personal, ...result.data.personal },
+                    skills: { ...getValues().skills, ...result.data.skills },
+                }
+
+                // Update form values reliably
+                reset(updatedData)
+
+                onChange(updatedData)
+                alert('Resume parsed successfully! Please review the details.')
+            } else {
+                alert('Error parsing resume: ' + result.error)
+            }
+        } catch (err) {
+            console.error('Import error:', err)
+            alert('Failed to connect to the parsing service.')
+        } finally {
+            setIsParsing(false)
+            e.target.value = null // Reset input
+        }
+    }
+
     const renderStepContent = () => {
         switch (currentStep) {
             case 1:
                 return (
                     <div>
-                        <h3 style={styles.sectionTitle}>PERSONAL INFORMATION</h3>
-                        <p style={styles.sectionSubtitle}>Let&apos;s start with your basic contact information</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                                <h3 style={styles.sectionTitle}>PERSONAL INFORMATION</h3>
+                                <p style={styles.sectionSubtitle}>Let&apos;s start with your basic contact information</p>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '10px 16px',
+                                    background: 'rgba(230,207,166,0.15)',
+                                    border: '1px dashed #E6CFA6',
+                                    borderRadius: '10px',
+                                    cursor: 'pointer',
+                                    color: '#3A4B41',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    transition: 'all 0.2s ease'
+                                }}>
+                                    {isParsing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                    {isParsing ? 'Importing...' : 'Import Resume (PDF)'}
+                                    <input
+                                        type="file"
+                                        accept=".pdf"
+                                        hidden
+                                        onChange={handleImportResume}
+                                        disabled={isParsing}
+                                    />
+                                </label>
+                                <span style={{ fontSize: '11px', color: '#9CA3AF' }}>Fastest way to fill the form!</span>
+                            </div>
+                        </div>
 
                         <div style={styles.formGrid}>
                             <div style={styles.formGroup}>

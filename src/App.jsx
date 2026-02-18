@@ -10,6 +10,7 @@ import SignIn from './pages/auth/SignIn.jsx'
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import ProviderDashboard from './pages/provider/ProviderDashboard.jsx'
 import SearcherDashboard from './pages/searcher/SearcherDashboard.jsx'
+import Profile from './pages/searcher/Profile.jsx'
 
 const styles = {
     app: {
@@ -81,6 +82,15 @@ function App() {
                 <Route path="/searcher" element={
                     <ProtectedRoute allowedRoles={['JOB_SEARCHER']}>
                         <SearcherDashboard />
+                    </ProtectedRoute>
+                } />
+                <Route path="/profile" element={
+                    <ProtectedRoute allowedRoles={['JOB_SEARCHER']}>
+                        <div style={styles.app}>
+                            <Navbar />
+                            <main style={styles.main}><Profile /></main>
+                            <Footer />
+                        </div>
                     </ProtectedRoute>
                 } />
                 <Route path="/searcher/*" element={

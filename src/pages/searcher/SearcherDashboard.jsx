@@ -7,7 +7,8 @@ import { motion } from 'framer-motion';
 import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
-    CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X
+    CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X,
+    Check, ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { jobsAPI, applicationsAPI, profileAPI } from '../../services/api';
@@ -427,7 +428,7 @@ function SearcherDashboard() {
 
     useEffect(() => {
         loadData();
-    }, [activeTab]);
+    }, [activeTab, user?.updated_at]);
 
     // Debounce search
     useEffect(() => {
@@ -682,12 +683,33 @@ function SearcherDashboard() {
 
                                                 {job.required_skills?.length > 0 && (
                                                     <div style={styles.skillTags}>
-                                                        {job.required_skills.slice(0, 5).map((skill, i) => (
-                                                            <span key={i} style={styles.skillTag}>{skill}</span>
-                                                        ))}
+                                                        {job.required_skills.slice(0, 5).map((skill, i) => {
+                                                            const isMatched = job.match_details?.matched_skills?.includes(skill);
+                                                            return (
+                                                                <span
+                                                                    key={i}
+                                                                    style={{
+                                                                        ...styles.skillTag,
+                                                                        border: isMatched ? '1px solid #059669' : '1px solid #E5E7EB',
+                                                                        background: isMatched ? '#D1FAE5' : '#F9FAFB',
+                                                                        color: isMatched ? '#059669' : '#6B7280'
+                                                                    }}
+                                                                >
+                                                                    {isMatched && <Check size={10} style={{ marginRight: '3px' }} />}
+                                                                    {skill}
+                                                                </span>
+                                                            );
+                                                        })}
                                                         {job.required_skills.length > 5 && (
                                                             <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
                                                         )}
+                                                    </div>
+                                                )}
+
+                                                {job.match_details?.missing_skills?.length > 0 && (
+                                                    <div style={{ fontSize: '12px', color: '#DC2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <TrendingUp size={14} />
+                                                        {job.match_details.missing_skills.length} growth area{job.match_details.missing_skills.length > 1 ? 's' : ''} detected
                                                     </div>
                                                 )}
 
@@ -956,9 +978,49 @@ function SearcherDashboard() {
                                 <span>Your Resume Score:</span>
                                 <strong>{score?.total_score || 0}/100</strong>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                                 <span>Match Percentage:</span>
-                                <strong style={{ color: '#059669' }}>{applyingTo.match_percentage || 0}%</strong>
+                                <strong style={{ color: getMatchColor(applyingTo.match_details?.score || 0).color }}>
+                                    {applyingTo.match_details?.score || 0}%
+                                </strong>
+                            </div>
+
+                            {/* Skills Match Breakdown */}
+                            <div style={{ marginTop: '16px' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4B5563', marginBottom: '8px' }}>SKILLS ANALYSIS</div>
+
+                                {applyingTo.match_details?.matched_skills?.length > 0 && (
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                                            <Check size={14} /> Matched Skills
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                            {applyingTo.match_details.matched_skills.map((skill, i) => (
+                                                <small key={i} style={{ padding: '2px 8px', background: '#D1FAE5', color: '#059669', borderRadius: '4px' }}>
+                                                    {skill}
+                                                </small>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {applyingTo.match_details?.missing_skills?.length > 0 && (
+                                    <div>
+                                        <div style={{ fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                                            <X size={14} /> Missing Skills
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                            {applyingTo.match_details.missing_skills.map((skill, i) => (
+                                                <small key={i} style={{ padding: '2px 8px', background: '#FEE2E2', color: '#DC2626', borderRadius: '4px' }}>
+                                                    {skill}
+                                                </small>
+                                            ))}
+                                        </div>
+                                        <p style={{ fontSize: '11px', color: '#6B7280', marginTop: '8px', fontStyle: 'italic' }}>
+                                            Tip: Adding these skills to your resume could improve your matching score!
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

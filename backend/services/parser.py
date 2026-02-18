@@ -112,10 +112,16 @@ def _extract_phone(text: str) -> str:
 def _extract_name(text: str) -> str:
     # Usually the first 1-2 lines contain the name, but skip common labels
     lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
-    for line in lines[:5]:
-        # Skip if it looks like an email or phone or long sentence
-        if "@" in line or any(d in line for d in "0123456789") or len(line.split()) > 4:
-            continue
+    skip_keywords = ["resume", "cv", "curriculum", "vitae", "portfolio", "profile", "contact"]
+    
+    for line in lines[:8]:
+        # Skip if it's too short or too long
+        if len(line.split()) > 4 or len(line) < 3: continue
+        # Skip if it contains email/phone/github
+        if "@" in line or any(d in line for d in "0123456789") or "/" in line: continue
+        # Skip common headers
+        if any(kw in line.lower() for kw in skip_keywords): continue
+        
         return line
     return lines[0] if lines else ""
 
@@ -289,11 +295,16 @@ def _parse_projects_section(content: str) -> List[Dict]:
 def _extract_list_items(content: str) -> List[str]:
     items = []
     # Split by common delimiters
-    parts = re.split(r'[,•\|\n\t]', content)
+    parts = re.split(r'[,•\|\n\t;]', content)
     for part in parts:
         clean = part.strip()
-        # Clean up bullet points
-        clean = re.sub(r'^[\-\*•]\s*', '', clean)
+        # Remove category labels (e.g. "Languages: Python" -> "Python")
+        clean = re.sub(r'^.*:\s*', '', clean)
+        # Clean up bullet points and common punctuation
+        clean = re.sub(r'^[\-\*•#\>]\s*', '', clean)
+        clean = clean.strip().rstrip('.')
+        
         if clean and len(clean) > 1 and len(clean) < 40:
-            items.append(clean)
+            if clean.lower() not in ["skills", "technical", "tools", "soft"]:
+                items.append(clean)
     return items
