@@ -7,11 +7,10 @@ import { motion } from 'framer-motion';
 import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
-    CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X,
-    Check, ArrowRight
+    CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, applicationsAPI, profileAPI } from '../../services/api';
+import { jobsAPI, applicationsAPI, profileAPI, searchAPI } from '../../services/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 const styles = {
@@ -426,9 +425,16 @@ function SearcherDashboard() {
     const [applyingTo, setApplyingTo] = useState(null);
     const [typingTimeout, setTypingTimeout] = useState(null);
 
+    // AI Web Search State
+    const [webResults, setWebResults] = useState([]);
+    const [webLoading, setWebLoading] = useState(false);
+    const [webError, setWebError] = useState('');
+    const [showWebResults, setShowWebResults] = useState(false);
+    const [webQuery, setWebQuery] = useState('');
+
     useEffect(() => {
         loadData();
-    }, [activeTab, user?.updated_at]);
+    }, [activeTab]);
 
     // Debounce search
     useEffect(() => {
@@ -479,16 +485,33 @@ function SearcherDashboard() {
     };
 
     const clearFilters = () => {
-        setFilters({
-            jobRole: '',
-            location: '',
-            employmentType: '',
-            minSalary: '',
-            maxSalary: '',
-            experience: ''
-        });
-        setSearchQuery('');
-        setTimeout(loadData, 0); // Trigger reload with cleared state
+        setFilters({ jobRole: '', location: '', employmentType: '', minSalary: '', maxSalary: '', experience: '' });
+        setTimeout(() => loadData(), 100);
+    };
+
+    // AI Web Search Handler
+    const handleWebSearch = async () => {
+        const query = searchQuery.trim();
+        if (!query) {
+            setWebError('Please type something in the search box first.');
+            return;
+        }
+        setWebLoading(true);
+        setWebError('');
+        setShowWebResults(true);
+        setWebQuery(query);
+        setWebResults([]);
+        try {
+            const params = { q: query };
+            if (filters.location) params.location = filters.location;
+            if (filters.employmentType) params.job_type = filters.employmentType;
+            const res = await searchAPI.external(params);
+            setWebResults(res.data.results || []);
+        } catch (err) {
+            setWebError('Search failed. Please check the backend is running.');
+        } finally {
+            setWebLoading(false);
+        }
     };
 
     const handleLogout = async () => {
@@ -535,253 +558,383 @@ function SearcherDashboard() {
     };
 
     return (
-        <div style={styles.dashboard}>
-            {/* Header */}
-            <header style={styles.header}>
-                <div style={styles.headerLeft}>
-                    <Link to="/" style={styles.logo}>
-                        <div style={styles.logoIcon}>IX</div>
-                        <span style={styles.logoText}>INTERNX</span>
-                    </Link>
-                    <span style={styles.badge}>JOB SEEKER</span>
+    <div style={styles.dashboard}>
+        {/* Header */}
+        <header style={styles.header}>
+            <div style={styles.headerLeft}>
+                <Link to="/" style={styles.logo}>
+                    <div style={styles.logoIcon}>IX</div>
+                    <span style={styles.logoText}>INTERNX</span>
+                </Link>
+                <span style={styles.badge}>JOB SEEKER</span>
+            </div>
+            <div style={styles.headerRight}>
+                <Link to="/builder" style={{ ...styles.actionBtn, ...styles.secondaryBtn, textDecoration: 'none' }}>
+                    Build Resume
+                </Link>
+                <div style={styles.userInfo}>
+                    <div style={styles.userName}>{user?.profile?.fullName || 'User'}</div>
+                    <div style={styles.userRole}>{user?.email}</div>
                 </div>
-                <div style={styles.headerRight}>
-                    <Link to="/builder" style={{ ...styles.actionBtn, ...styles.secondaryBtn, textDecoration: 'none' }}>
-                        Build Resume
-                    </Link>
-                    <div style={styles.userInfo}>
-                        <div style={styles.userName}>{user?.profile?.fullName || 'User'}</div>
-                        <div style={styles.userRole}>{user?.email}</div>
+                <button style={styles.logoutBtn} onClick={handleLogout}>
+                    <LogOut size={16} />
+                </button>
+            </div>
+        </header>
+
+        <div style={styles.container}>
+            <h1 style={styles.title}>Job Dashboard</h1>
+
+            <div style={styles.grid}>
+                {/* Main Content */}
+                <div style={styles.main}>
+                    {/* Tabs */}
+                    <div style={styles.tabs}>
+                        <button
+                            style={{ ...styles.tab, ...(activeTab === 'browse' ? styles.tabActive : {}) }}
+                            onClick={() => setActiveTab('browse')}
+                        >
+                            <Briefcase size={16} /> Browse Jobs
+                        </button>
+                        <button
+                            style={{ ...styles.tab, ...(activeTab === 'applications' ? styles.tabActive : {}) }}
+                            onClick={() => setActiveTab('applications')}
+                        >
+                            <Send size={16} /> My Applications ({applications.length})
+                        </button>
                     </div>
-                    <button style={styles.logoutBtn} onClick={handleLogout}>
-                        <LogOut size={16} />
-                    </button>
-                </div>
-            </header>
 
-            <div style={styles.container}>
-                <h1 style={styles.title}>Job Dashboard</h1>
+                    {activeTab === 'browse' && (
+                        <>
+                            {/* Search Bar */}
+                            <div style={{ position: 'relative', marginBottom: '12px' }}>
+                                <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search jobs by title or skills..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && handleWebSearch()}
+                                    style={{ ...styles.searchInput, paddingLeft: '44px', paddingRight: '180px' }}
+                                />
+                                <button
+                                    style={{
+                                        position: 'absolute',
+                                        right: '8px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 14px',
+                                        background: Object.values(filters).some(Boolean) ? '#E6CFA6' : '#F3F4F6',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        fontSize: '13px',
+                                        fontWeight: '500',
+                                        color: '#374151'
+                                    }}
+                                    onClick={() => setShowFilters(!showFilters)}
+                                >
+                                    <Filter size={15} /> Filters
+                                </button>
+                            </div>
 
-                <div style={styles.grid}>
-                    {/* Main Content */}
-                    <div style={styles.main}>
-                        {/* Tabs */}
-                        <div style={styles.tabs}>
+                            {/* AI Web Search Button */}
                             <button
-                                style={{ ...styles.tab, ...(activeTab === 'browse' ? styles.tabActive : {}) }}
-                                onClick={() => setActiveTab('browse')}
+                                onClick={handleWebSearch}
+                                disabled={webLoading}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    marginBottom: '20px',
+                                    background: webLoading
+                                        ? '#6B7280'
+                                        : 'linear-gradient(135deg, #3A4B41 0%, #4A5D52 100%)',
+                                    color: '#E6CFA6',
+                                    border: 'none',
+                                    borderRadius: '10px',
+                                    fontSize: '14px',
+                                    fontWeight: '700',
+                                    cursor: webLoading ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    letterSpacing: '0.5px',
+                                    transition: 'all 0.2s ease'
+                                }}
                             >
-                                <Briefcase size={16} /> Browse Jobs
+                                {webLoading ? (
+                                    <>
+                                        <div style={{
+                                            width: '16px', height: '16px',
+                                            border: '2px solid rgba(230,207,166,0.3)',
+                                            borderTop: '2px solid #E6CFA6',
+                                            borderRadius: '50%',
+                                            animation: 'spin 0.8s linear infinite'
+                                        }} />
+                                        Searching LinkedIn, Indeed, Internshala...
+                                    </>
+                                ) : (
+                                    <>
+                                        ✨ Search Web for "{searchQuery || 'opportunities'}"
+                                    </>
+                                )}
                             </button>
-                            <button
-                                style={{ ...styles.tab, ...(activeTab === 'applications' ? styles.tabActive : {}) }}
-                                onClick={() => setActiveTab('applications')}
-                            >
-                                <Send size={16} /> My Applications ({applications.length})
-                            </button>
-                        </div>
 
-                        {activeTab === 'browse' && (
-                            <>
-                                {/* Search */}
-                                <div style={{ position: 'relative', marginBottom: '20px' }}>
-                                    <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search jobs by title or skills..."
-                                        value={searchQuery}
-                                        onChange={e => setSearchQuery(e.target.value)}
-                                        style={{ ...styles.searchInput, paddingLeft: '44px', paddingRight: '120px' }}
-                                    />
+                            {loading ? (
+                                <div style={styles.loading}>
+                                    <div style={styles.spinner} />
+                                </div>
+                            ) : jobs.length === 0 ? (
+                                <div style={styles.emptyState}>
+                                    <Briefcase size={40} color="#9CA3AF" />
+                                    <h3 style={{ marginTop: '16px', color: '#374151' }}>No jobs found</h3>
+                                    <p>Try adjusting your search or filters</p>
                                     <button
-                                        style={{
-                                            position: 'absolute',
-                                            right: '8px',
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            padding: '8px 16px',
-                                            background: Object.values(filters).some(Boolean) ? '#E6CFA6' : '#F3F4F6',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            cursor: 'pointer',
-                                            fontSize: '14px',
-                                            fontWeight: '500',
-                                            color: '#374151'
-                                        }}
-                                        onClick={() => setShowFilters(!showFilters)}
+                                        onClick={clearFilters}
+                                        style={{ ...styles.actionBtn, ...styles.secondaryBtn, marginTop: '12px' }}
                                     >
-                                        <Filter size={16} /> Filters
+                                        Clear All Filters
                                     </button>
                                 </div>
-
-                                {loading ? (
-                                    <div style={styles.loading}>
-                                        <div style={styles.spinner} />
-                                    </div>
-                                ) : jobs.length === 0 ? (
-                                    <div style={styles.emptyState}>
-                                        <Briefcase size={40} color="#9CA3AF" />
-                                        <h3 style={{ marginTop: '16px', color: '#374151' }}>No jobs found</h3>
-                                        <p>Try adjusting your search or filters</p>
-                                        <button
-                                            onClick={clearFilters}
-                                            style={{ ...styles.actionBtn, ...styles.secondaryBtn, marginTop: '12px' }}
+                            ) : (
+                                jobs.map(job => {
+                                    const matchColors = getMatchColor(job.match_percentage || 0);
+                                    const applied = isApplied(job.id);
+                                    return (
+                                        <motion.div
+                                            key={job.id}
+                                            style={styles.jobCard}
+                                            whileHover={{ borderColor: '#3A4B41' }}
                                         >
-                                            Clear All Filters
+                                            <div style={styles.jobHeader}>
+                                                <div>
+                                                    <h3 style={styles.jobTitle}>{job.title}</h3>
+                                                    <div style={styles.jobCompany}>
+                                                        <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                        {job.provider_company || 'Company'}
+                                                    </div>
+                                                </div>
+                                                {job.match_percentage !== null && (
+                                                    <span style={{
+                                                        ...styles.matchBadge,
+                                                        background: matchColors.bg,
+                                                        color: matchColors.color
+                                                    }}>
+                                                        <Target size={14} style={{ marginRight: '4px' }} />
+                                                        {job.match_percentage}% Match
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div style={styles.jobMeta}>
+                                                <span style={styles.jobMetaItem}>
+                                                    <MapPin size={14} /> {job.location || 'Remote'}
+                                                </span>
+                                                <span style={styles.jobMetaItem}>
+                                                    <Clock size={14} /> {job.employment_type}
+                                                </span>
+                                                <span style={styles.jobMetaItem}>
+                                                    <Briefcase size={14} /> {job.required_experience}
+                                                </span>
+                                                {job.salary_range && (
+                                                    <span style={styles.jobMetaItem}>
+                                                        <DollarSign size={14} />
+                                                        ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {job.required_skills?.length > 0 && (
+                                                <div style={styles.skillTags}>
+                                                    {job.required_skills.slice(0, 5).map((skill, i) => (
+                                                        <span key={i} style={styles.skillTag}>{skill}</span>
+                                                    ))}
+                                                    {job.required_skills.length > 5 && (
+                                                        <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            <div style={styles.jobActions}>
+                                                {applied ? (
+                                                    <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }}>
+                                                        <CheckCircle size={16} /> Applied
+                                                    </button>
+                                                ) : (
+                                                    <motion.button
+                                                        style={{ ...styles.actionBtn, ...styles.primaryBtn }}
+                                                        onClick={() => setApplyingTo(job)}
+                                                        whileHover={{ scale: 1.02 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                    >
+                                                        <Send size={16} /> Apply Now
+                                                    </motion.button>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })
+                            )}
+
+                            {/* ─── AI Web Search Results ─── */}
+                            {showWebResults && (
+                                <div style={{ marginTop: '32px' }}>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center',
+                                        justifyContent: 'space-between', marginBottom: '16px'
+                                    }}>
+                                        <div>
+                                            <h3 style={{
+                                                fontFamily: "'Bebas Neue', sans-serif",
+                                                fontSize: '1.6rem', color: '#3A4B41', letterSpacing: '1px'
+                                            }}>
+                                                ✨ WEB RESULTS FOR "{webQuery.toUpperCase()}"
+                                            </h3>
+                                            <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                                                Direct links from LinkedIn, Indeed, Internshala & more
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowWebResults(false)}
+                                            style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', color: '#6B7280', fontSize: '13px' }}
+                                        >
+                                            <X size={14} /> Hide
                                         </button>
                                     </div>
-                                ) : (
-                                    jobs.map(job => {
-                                        const matchColors = getMatchColor(job.match_percentage || 0);
-                                        const applied = isApplied(job.id);
-                                        return (
-                                            <motion.div
-                                                key={job.id}
-                                                style={styles.jobCard}
-                                                whileHover={{ borderColor: '#3A4B41' }}
-                                            >
-                                                <div style={styles.jobHeader}>
-                                                    <div>
-                                                        <h3 style={styles.jobTitle}>{job.title}</h3>
-                                                        <div style={styles.jobCompany}>
-                                                            <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                                            {job.provider_company || 'Company'}
-                                                        </div>
-                                                    </div>
-                                                    {job.match_percentage !== null && (
-                                                        <span style={{
-                                                            ...styles.matchBadge,
-                                                            background: matchColors.bg,
-                                                            color: matchColors.color
-                                                        }}>
-                                                            <Target size={14} style={{ marginRight: '4px' }} />
-                                                            {job.match_percentage}% Match
-                                                        </span>
-                                                    )}
-                                                </div>
 
-                                                <div style={styles.jobMeta}>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <MapPin size={14} /> {job.location || 'Remote'}
-                                                    </span>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <Clock size={14} /> {job.employment_type}
-                                                    </span>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <Briefcase size={14} /> {job.required_experience}
-                                                    </span>
-                                                    {job.salary_range && (
-                                                        <span style={styles.jobMetaItem}>
-                                                            <DollarSign size={14} />
-                                                            ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                    {webError && (
+                                        <div style={{ padding: '16px', background: '#FEE2E2', borderRadius: '10px', color: '#DC2626', marginBottom: '16px', fontSize: '14px' }}>
+                                            ⚠ {webError}
+                                        </div>
+                                    )}
 
-                                                {job.required_skills?.length > 0 && (
-                                                    <div style={styles.skillTags}>
-                                                        {job.required_skills.slice(0, 5).map((skill, i) => {
-                                                            const isMatched = job.match_details?.matched_skills?.includes(skill);
-                                                            return (
-                                                                <span
-                                                                    key={i}
-                                                                    style={{
-                                                                        ...styles.skillTag,
-                                                                        border: isMatched ? '1px solid #059669' : '1px solid #E5E7EB',
-                                                                        background: isMatched ? '#D1FAE5' : '#F9FAFB',
-                                                                        color: isMatched ? '#059669' : '#6B7280'
-                                                                    }}
-                                                                >
-                                                                    {isMatched && <Check size={10} style={{ marginRight: '3px' }} />}
-                                                                    {skill}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                        {job.required_skills.length > 5 && (
-                                                            <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {job.match_details?.missing_skills?.length > 0 && (
-                                                    <div style={{ fontSize: '12px', color: '#DC2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <TrendingUp size={14} />
-                                                        {job.match_details.missing_skills.length} growth area{job.match_details.missing_skills.length > 1 ? 's' : ''} detected
-                                                    </div>
-                                                )}
-
-                                                <div style={styles.jobActions}>
-                                                    {applied ? (
-                                                        <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }}>
-                                                            <CheckCircle size={16} /> Applied
-                                                        </button>
-                                                    ) : (
-                                                        <motion.button
-                                                            style={{ ...styles.actionBtn, ...styles.primaryBtn }}
-                                                            onClick={() => setApplyingTo(job)}
-                                                            whileHover={{ scale: 1.02 }}
-                                                            whileTap={{ scale: 0.98 }}
-                                                        >
-                                                            <Send size={16} /> Apply Now
-                                                        </motion.button>
-                                                    )}
-                                                </div>
-                                            </motion.div>
-                                        );
-                                    })
-                                )}
-                            </>
-                        )}
-
-                        {activeTab === 'applications' && (
-                            <>
-                                {applications.length === 0 ? (
-                                    <div style={styles.emptyState}>
-                                        <Send size={40} color="#9CA3AF" />
-                                        <h3 style={{ marginTop: '16px', color: '#374151' }}>No applications yet</h3>
-                                        <p>Start applying to jobs to track your progress here</p>
-                                    </div>
-                                ) : (
-                                    applications.map(app => {
-                                        const statusDetails = getStatusDetails(app.status);
-                                        const StatusIcon = statusDetails.icon;
-                                        return (
-                                            <div key={app.id} style={styles.applicationCard}>
+                                    {webLoading ? (
+                                        <div style={styles.loading}><div style={styles.spinner} /></div>
+                                    ) : webResults.map((result, i) => (
+                                        <motion.div
+                                            key={result.id || i}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: i * 0.05 }}
+                                            style={{
+                                                ...styles.jobCard,
+                                                borderLeft: result.is_verified ? '3px solid #059669' : '3px solid #E5E7EB',
+                                                position: 'relative'
+                                            }}
+                                        >
+                                            {/* Source badge */}
+                                            <div style={{
+                                                display: 'flex', justifyContent: 'space-between',
+                                                alignItems: 'flex-start', marginBottom: '8px'
+                                            }}>
                                                 <div>
-                                                    <h4 style={{ fontSize: '16px', fontWeight: '600', color: '#3A4B41', marginBottom: '4px' }}>
-                                                        {app.job_title}
-                                                    </h4>
-                                                    <p style={{ fontSize: '13px', color: '#6B7280' }}>
-                                                        {app.job_company} • Applied {new Date(app.created_at).toLocaleDateString()}
-                                                    </p>
+                                                    <h3 style={{ ...styles.jobTitle, marginBottom: '2px' }}>{result.title}</h3>
+                                                    <div style={styles.jobCompany}>
+                                                        <Building size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                        {result.company}
+                                                    </div>
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <span style={{
-                                                        ...styles.statusBadge,
-                                                        background: statusDetails.bg,
-                                                        color: statusDetails.color
-                                                    }}>
-                                                        <StatusIcon size={14} />
-                                                        {statusDetails.label}
-                                                    </span>
-                                                    <span style={{
-                                                        ...styles.statusBadge,
-                                                        background: '#E0E7FF',
-                                                        color: '#4F46E5'
-                                                    }}>
-                                                        {app.match_percentage}% Match
-                                                    </span>
-                                                </div>
+                                                <span style={{
+                                                    padding: '4px 10px',
+                                                    background: result.is_verified ? '#D1FAE5' : '#F3F4F6',
+                                                    color: result.is_verified ? '#059669' : '#6B7280',
+                                                    borderRadius: '20px',
+                                                    fontSize: '11px',
+                                                    fontWeight: '600',
+                                                    whiteSpace: 'nowrap'
+                                                }}>
+                                                    {result.is_verified ? '✓ ' : ''}{result.source}
+                                                </span>
                                             </div>
-                                        );
-                                    })
-                                )}
-                            </>
-                        )}
-                    </div>
+
+                                            <div style={styles.jobMeta}>
+                                                <span style={styles.jobMetaItem}><MapPin size={13} /> {result.location}</span>
+                                                <span style={styles.jobMetaItem}><Briefcase size={13} /> {result.type}</span>
+                                                {result.salary && (
+                                                    <span style={styles.jobMetaItem}><DollarSign size={13} /> {result.salary}</span>
+                                                )}
+                                            </div>
+
+                                            {result.description_snippet && (
+                                                <p style={{ fontSize: '13px', color: '#6B7280', margin: '10px 0', lineHeight: '1.5' }}>
+                                                    {result.description_snippet}
+                                                </p>
+                                            )}
+
+                                            <div style={styles.jobActions}>
+                                                <a
+                                                    href={result.apply_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{
+                                                        ...styles.actionBtn,
+                                                        ...styles.primaryBtn,
+                                                        textDecoration: 'none',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px'
+                                                    }}
+                                                >
+                                                    <ChevronRight size={16} /> Apply on {result.source}
+                                                </a>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {activeTab === 'applications' && (
+                        <>
+                                    {applications.length === 0 ? (
+                                        <div style={styles.emptyState}>
+                                            <Send size={40} color="#9CA3AF" />
+                                            <h3 style={{ marginTop: '16px', color: '#374151' }}>No applications yet</h3>
+                                            <p>Start applying to jobs to track your progress here</p>
+                                        </div>
+                                    ) : (
+                                        applications.map(app => {
+                                            const statusDetails = getStatusDetails(app.status);
+                                            const StatusIcon = statusDetails.icon;
+                                            return (
+                                                <div key={app.id} style={styles.applicationCard}>
+                                                    <div>
+                                                        <h4 style={{ fontSize: '16px', fontWeight: '600', color: '#3A4B41', marginBottom: '4px' }}>
+                                                            {app.job_title}
+                                                        </h4>
+                                                        <p style={{ fontSize: '13px', color: '#6B7280' }}>
+                                                            {app.job_company} • Applied {new Date(app.created_at).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <span style={{
+                                                            ...styles.statusBadge,
+                                                            background: statusDetails.bg,
+                                                            color: statusDetails.color
+                                                        }}>
+                                                            <StatusIcon size={14} />
+                                                            {statusDetails.label}
+                                                        </span>
+                                                        <span style={{
+                                                            ...styles.statusBadge,
+                                                            background: '#E0E7FF',
+                                                            color: '#4F46E5'
+                                                        }}>
+                                                            {app.match_percentage}% Match
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                        </>
+                    )}
+                </div>
 
                     {/* Sidebar */}
                     <div style={styles.sidebar}>
@@ -978,49 +1131,9 @@ function SearcherDashboard() {
                                 <span>Your Resume Score:</span>
                                 <strong>{score?.total_score || 0}/100</strong>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>Match Percentage:</span>
-                                <strong style={{ color: getMatchColor(applyingTo.match_details?.score || 0).color }}>
-                                    {applyingTo.match_details?.score || 0}%
-                                </strong>
-                            </div>
-
-                            {/* Skills Match Breakdown */}
-                            <div style={{ marginTop: '16px' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4B5563', marginBottom: '8px' }}>SKILLS ANALYSIS</div>
-
-                                {applyingTo.match_details?.matched_skills?.length > 0 && (
-                                    <div style={{ marginBottom: '12px' }}>
-                                        <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                                            <Check size={14} /> Matched Skills
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                            {applyingTo.match_details.matched_skills.map((skill, i) => (
-                                                <small key={i} style={{ padding: '2px 8px', background: '#D1FAE5', color: '#059669', borderRadius: '4px' }}>
-                                                    {skill}
-                                                </small>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {applyingTo.match_details?.missing_skills?.length > 0 && (
-                                    <div>
-                                        <div style={{ fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                                            <X size={14} /> Missing Skills
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                            {applyingTo.match_details.missing_skills.map((skill, i) => (
-                                                <small key={i} style={{ padding: '2px 8px', background: '#FEE2E2', color: '#DC2626', borderRadius: '4px' }}>
-                                                    {skill}
-                                                </small>
-                                            ))}
-                                        </div>
-                                        <p style={{ fontSize: '11px', color: '#6B7280', marginTop: '8px', fontStyle: 'italic' }}>
-                                            Tip: Adding these skills to your resume could improve your matching score!
-                                        </p>
-                                    </div>
-                                )}
+                                <strong style={{ color: '#059669' }}>{applyingTo.match_percentage || 0}%</strong>
                             </div>
                         </div>
 
@@ -1059,7 +1172,7 @@ function SearcherDashboard() {
                 }
             `}</style>
         </div>
-    );
+        );
 }
 
-export default SearcherDashboard;
+        export default SearcherDashboard;
