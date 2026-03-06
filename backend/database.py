@@ -16,16 +16,24 @@ class Database:
     
     @classmethod
     async def connect(cls):
-        """Connect to MongoDB."""
-        # Create SSL context that doesn't verify certificates
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        
-        cls.client = AsyncIOMotorClient(MONGODB_URL, tls=True, tlsAllowInvalidCertificates=True)
+        """Connect to MongoDB. Auto-detects local vs Atlas."""
+        is_atlas = "mongodb+srv://" in MONGODB_URL or "mongodb.net" in MONGODB_URL
+
+        if is_atlas:
+            # Atlas requires TLS
+            cls.client = AsyncIOMotorClient(
+                MONGODB_URL,
+                tls=True,
+                tlsAllowInvalidCertificates=True
+            )
+        else:
+            # Local MongoDB - no TLS needed
+            cls.client = AsyncIOMotorClient(MONGODB_URL)
+
         # Verify connection
         await cls.client.admin.command('ping')
-        print(f"Connected to MongoDB: {DATABASE_NAME}")
+        print(f"Connected to MongoDB ({'Atlas' if is_atlas else 'Local'}): {DATABASE_NAME}")
+
     
     @classmethod
     async def disconnect(cls):

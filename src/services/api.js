@@ -117,4 +117,9 @@ export const adminAPI = {
     getLogs: (params) => api.get('/admin/logs', { params }),
 };
 
+// External Job Search API
+export const searchAPI = {
+    external: (params) => api.get('/search/external', { params }),
+};
+
 export default api;
