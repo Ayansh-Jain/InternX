@@ -15,6 +15,7 @@ async def external_job_search(
     q: str = Query(..., description="Job search query, e.g. 'AI Intern Remote'"),
     location: Optional[str] = Query(None, description="Location filter, e.g. 'Bangalore'"),
     job_type: Optional[str] = Query(None, description="Type: internship, job, hackathon"),
+    work_mode: Optional[str] = Query(None, description="Work mode: onsite, remote, hybrid"),
     page: int = Query(1, ge=1, le=5)
 ):
     """
@@ -25,6 +26,7 @@ async def external_job_search(
         query=q,
         location=location,
         job_type=job_type,
+        work_mode=work_mode,
         page=page
     )
     return results
