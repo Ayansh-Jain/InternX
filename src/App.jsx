@@ -11,6 +11,7 @@ import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import ProviderDashboard from './pages/provider/ProviderDashboard.jsx'
 import SearcherDashboard from './pages/searcher/SearcherDashboard.jsx'
 import Profile from './pages/searcher/Profile.jsx'
+import WebSearch from './pages/searcher/WebSearch.jsx'
 
 const styles = {
     app: {
@@ -91,6 +92,11 @@ function App() {
                             <main style={styles.main}><Profile /></main>
                             <Footer />
                         </div>
+                    </ProtectedRoute>
+                } />
+                <Route path="/searcher/web-search" element={
+                    <ProtectedRoute allowedRoles={['JOB_SEARCHER']}>
+                        <WebSearch />
                     </ProtectedRoute>
                 } />
                 <Route path="/searcher/*" element={
