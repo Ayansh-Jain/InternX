@@ -3,11 +3,20 @@ AI-powered external job search service.
 Uses JSearch API (via RapidAPI) when available.
 Falls back to a smart template-based generator that produces realistic job listings
 using real company names, role-specific descriptions, and INR salaries.
+<<<<<<< HEAD
 """
 
 import os
 import uuid
 import random
+=======
+Results rotate daily so the same search shows fresh listings each day.
+"""
+
+import os
+import random
+from datetime import datetime, timedelta
+>>>>>>> vinya
 import httpx
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -27,6 +36,7 @@ TRUSTED_DOMAINS = [
 
 # ── Platform URL builders ─────────────────────────────────────────────────────
 PLATFORMS = [
+<<<<<<< HEAD
     {"name": "LinkedIn",    "url": lambda q, l: f"https://www.linkedin.com/jobs/search/?keywords={quote_plus(q)}&location={quote_plus(l or '')}"},
     {"name": "Indeed",      "url": lambda q, l: f"https://www.indeed.com/jobs?q={quote_plus(q)}&l={quote_plus(l or '')}"},
     {"name": "Internshala", "url": lambda q, l: f"https://internshala.com/internships/{quote_plus(q).replace('+','-').lower()}-internship"},
@@ -103,6 +113,44 @@ COMPANY_POOLS = {
     "hackathon": ["Unstop", "Devfolio", "HackerEarth", "CodeChef", "Smart India Hackathon", "HackIndia", "GitHub", "MLH"],
     # Generic tech (default)
     "default":  ["Google", "Microsoft", "Flipkart", "Swiggy", "Razorpay", "CRED", "Zepto", "Freshworks"],
+=======
+    {"name": "LinkedIn",    "url": lambda t, c, l: f"https://www.linkedin.com/jobs/search/?keywords={quote_plus(f'{t} {c}')}&location={quote_plus(l or '')}"},
+    {"name": "Indeed",      "url": lambda t, c, l: f"https://www.indeed.com/jobs?q={quote_plus(f'{t} {c}')}&l={quote_plus(l or '')}"},
+    {"name": "Internshala", "url": lambda t, c, l: f"https://internshala.com/internships/work-from-home-internships/?search_query={quote_plus(f'{t} {c}')}"},
+    {"name": "Naukri",      "url": lambda t, c, l: f"https://www.naukri.com/{quote_plus(f'{t}-{c}').replace('+','-').lower()}-jobs"},
+    {"name": "Unstop",      "url": lambda t, c, l: f"https://unstop.com/jobs?search={quote_plus(f'{t} {c}')}"},
+    {"name": "Wellfound",   "url": lambda t, c, l: f"https://wellfound.com/jobs?role={quote_plus(t)}&company={quote_plus(c)}"},
+    {"name": "Glassdoor",   "url": lambda t, c, l: f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={quote_plus(f'{t} {c}')}"},
+    {"name": "Devfolio",    "url": lambda t, c, l: "https://devfolio.co/hackathons"},
+]
+
+# ── Template data pools ───────────────────────────────────────────────────────
+# ── Template data pools — GENERIC / NON-FAKE ──────────────────────────────────
+# Using descriptors instead of specific names to avoid "fake" data
+GENERIC_TECH_DESCRIPTORS = [
+    "Product Tech Startup", "Early-stage Fintech", "Unicorn SaaS Firm", 
+    "Top-tier MNC", "Agile Software House", "Global Tech Giant",
+    "E-commerce Leader", "AI Research Lab", "Cloud Infrastructure Firm",
+    "Cybersecurity Specialist", "EdTech Innovator", "B2B SaaS Startup"
+]
+
+GENERIC_NON_TECH_DESCRIPTORS = [
+    "Big 4 Consulting Firm", "Leading Private Bank", "Global Investment Bank",
+    "FMCG Major", "Strategic Growth Firm", "Business Operations Lead",
+    "Digital Marketing Agency", "EdTech Content House"
+]
+
+# Domain-specific generic pools
+COMPANY_POOLS = {
+    "frontend": ["High-growth Product Startup", "E-commerce Giant", "UX-focused Fintech", "Design-led Tech Firm"],
+    "backend":  ["Stealth SaaS Startup", "Scalable Infrastructure Firm", "Cloud native MNC", "Backend Systems Specialist"],
+    "mobile":   ["Top Mobile App Studio", "Consumer Tech Unicorn", "Fintech Mobile Lead"],
+    "data":     ["Data Analytics MNC", "AI Solutions Lab", "ML Research Center"],
+    "fintech":  ["Leading Neo-bank", "WealthTech Startup", "Payments Infrastructure Firm"],
+    "marketing":["Growth Marketing Agency", "Consumer Brand MNC", "Digital Strategy House"],
+    "consulting":["Global Management Consulting", "Strategy & Operations Firm", "IT Advisory House"],
+    "default":  ["Tech-first MNC", "High-growth Startup", "Product Innovation Lab"]
+>>>>>>> vinya
 }
 
 CITIES = [
@@ -242,9 +290,15 @@ def _pick_companies(query: str, job_type: Optional[str], count: int, seed: int) 
     rng = random.Random(seed)
     shuffled = pool[:]
     rng.shuffle(shuffled)
+<<<<<<< HEAD
     # If we need more companies than the pool has, extend with the default pool
     if len(shuffled) < count:
         extra = COMPANY_POOLS["default"][:]
+=======
+    # If we need more companies than the pool has, extend with the tech descriptors
+    if len(shuffled) < count:
+        extra = GENERIC_TECH_DESCRIPTORS[:]
+>>>>>>> vinya
         rng.shuffle(extra)
         for c in extra:
             if c not in shuffled:
@@ -283,8 +337,15 @@ def _generate_smart_listings(
     - Salary/stipend is appropriate to the opportunity type
     - Results are deterministic (same search = same results)
     """
+<<<<<<< HEAD
     # Deterministic seed from query so same search = same results
     seed = hash(query.lower().strip() + (job_type or '') + (location or ''))
+=======
+    # Daily-rotating seed: same search returns same results within a day,
+    # but refreshes each new day so users see fresh listings.
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    seed = hash(query.lower().strip() + (job_type or '') + (location or '') + today)
+>>>>>>> vinya
 
     rng = random.Random(seed)
     companies = _pick_companies(query, job_type, count, seed)
@@ -293,11 +354,19 @@ def _generate_smart_listings(
     platforms_shuffled = PLATFORMS[:]
     rng.shuffle(platforms_shuffled)
 
+<<<<<<< HEAD
+=======
+    # Offsets for posted_at so each listing appears to have been posted 1-10 days ago
+    day_offsets = list(range(1, 11))
+    rng.shuffle(day_offsets)
+
+>>>>>>> vinya
     results = []
     for i in range(min(count, len(companies))):
         platform = platforms_shuffled[i % len(platforms_shuffled)]
         wm = _get_work_mode_label(work_mode, location)
         job_location = "Remote" if wm == "Remote" else loc
+<<<<<<< HEAD
 
         results.append({
             "id": f"smart-{abs(seed) % 99999:05d}-{i}",
@@ -309,6 +378,23 @@ def _generate_smart_listings(
             "apply_url": platform["url"](query, location),
             "source": platform["name"],
             "posted_at": None,
+=======
+        posted_date = (datetime.utcnow() - timedelta(days=day_offsets[i % len(day_offsets)])).isoformat() + "Z"
+        
+        job_title = _build_title(query, job_type)
+        company_name = companies[i]
+
+        results.append({
+            "id": f"smart-{abs(seed) % 99999:05d}-{i}",
+            "title": job_title,
+            "company": company_name,
+            "location": job_location,
+            "type": (job_type.title() if job_type else "Full-Time"),
+            "salary": _get_salary(job_type),
+            "apply_url": platform["url"](job_title, company_name, job_location),
+            "source": platform["name"],
+            "posted_at": posted_date,
+>>>>>>> vinya
             "description_snippet": _get_description(query, job_type),
             "is_verified": True,
             "logo": None,
@@ -414,9 +500,16 @@ async def search_external_jobs(
         except Exception as e:
             print(f"[job_search] JSearch API error: {e}")
 
+<<<<<<< HEAD
     # Step 3: Fall back to smart template listings
     if not results:
         source_used = "smart_listings"
+=======
+    # Step 3: Fall back to smart template listings ONLY if no results were found
+    if not results:
+        source_used = "smart_listings"
+        # Using generic descriptors instead of specific company names to avoid "fake" data
+>>>>>>> vinya
         results = _generate_smart_listings(query, location, job_type, work_mode)
 
     return {

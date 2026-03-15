@@ -3,11 +3,14 @@ Authentication routes for signup, signin, and token management.
 """
 
 from fastapi import APIRouter, HTTPException, status, Depends
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
+import random
+import string
+from pydantic import BaseModel, EmailStr
 
 from models.user import (
-    UserCreate, UserLogin, UserResponse, Token, UserRole, UserStatus, 
+    UserCreate, UserLogin, UserResponse, Token, UserRole, UserStatus,
     UserProfile, UserScore
 )
 from auth.security import get_password_hash, verify_password, create_tokens, decode_token
@@ -213,8 +216,105 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
 @router.post("/logout")
 async def logout(current_user: dict = Depends(get_current_user)):
     """
-    Logout user. 
+    Logout user.
     Note: Since we use stateless JWT, this is mainly for client-side token cleanup.
-    For enhanced security, implement token blacklisting.
     """
     return {"message": "Logged out successfully"}
+
+
+# ── Forgot / Reset Password (OTP-based) ──────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str
+
+
+def _generate_otp(length: int = 6) -> str:
+    """Generate a numeric OTP of the given length."""
+    return "".join(random.choices(string.digits, k=length))
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    """
+    Initiate password reset by generating a 6-digit OTP (15-min expiry).
+    For local dev: OTP is printed to the server console.
+    In production: replace the print() with an email send via SMTP / SendGrid.
+    """
+    users_collection = Database.get_collection(USERS_COLLECTION)
+
+    user = await users_collection.find_one({"email": request.email.lower()})
+    # Return a generic message even if the email is not found (prevents user enumeration)
+    if not user:
+        return {"message": "If that email is registered, an OTP has been sent."}
+
+    otp = _generate_otp()
+    expiry = datetime.utcnow() + timedelta(minutes=15)
+
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"password_reset_otp": otp, "password_reset_expiry": expiry}}
+    )
+
+    # ⚠️  LOCAL DEV: print OTP to console. Replace with email in production.
+    print(f"\n{'='*40}")
+    print(f"  PASSWORD RESET OTP for {request.email}")
+    print(f"  OTP: {otp}  (valid 15 minutes)")
+    print(f"{'='*40}\n")
+
+    return {"message": "If that email is registered, an OTP has been sent."}
+
+
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    """
+    Reset password using the OTP received from /forgot-password.
+    """
+    if len(request.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 6 characters"
+        )
+
+    users_collection = Database.get_collection(USERS_COLLECTION)
+
+    user = await users_collection.find_one({"email": request.email.lower()})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email or OTP"
+        )
+
+    stored_otp = user.get("password_reset_otp")
+    expiry = user.get("password_reset_expiry")
+
+    if not stored_otp or stored_otp != request.otp:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OTP"
+        )
+
+    if not expiry or datetime.utcnow() > expiry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP has expired. Please request a new one."
+        )
+
+    # Update password and clear OTP fields
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {
+                "password_hash": get_password_hash(request.new_password),
+                "updated_at": datetime.utcnow()
+            },
+            "$unset": {"password_reset_otp": "", "password_reset_expiry": ""}
+        }
+    )
+
+    return {"message": "Password reset successfully. You can now sign in with your new password."}

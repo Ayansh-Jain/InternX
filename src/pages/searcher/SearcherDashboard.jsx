@@ -8,10 +8,10 @@ import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
     CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X,
-    Check, ArrowRight
+    Check, ArrowRight, Wand2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, applicationsAPI, profileAPI } from '../../services/api';
+import { jobsAPI, applicationsAPI, profileAPI, searchAPI } from '../../services/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 const styles = {
@@ -425,10 +425,20 @@ function SearcherDashboard() {
     const [searchQuery, setSearchQuery] = useState('');
     const [applyingTo, setApplyingTo] = useState(null);
     const [typingTimeout, setTypingTimeout] = useState(null);
+    const [generatedBio, setGeneratedBio] = useState('');
+    const [isGeneratingBio, setIsGeneratingBio] = useState(false);
+    const [bioError, setBioError] = useState('');
+
+    // AI Web Search State
+    const [webResults, setWebResults] = useState([]);
+    const [webLoading, setWebLoading] = useState(false);
+    const [webError, setWebError] = useState('');
+    const [showWebResults, setShowWebResults] = useState(false);
+    const [webQuery, setWebQuery] = useState('');
 
     useEffect(() => {
         loadData();
-    }, [activeTab, user?.updated_at]);
+    }, [activeTab]);
 
     // Debounce search
     useEffect(() => {
@@ -479,16 +489,33 @@ function SearcherDashboard() {
     };
 
     const clearFilters = () => {
-        setFilters({
-            jobRole: '',
-            location: '',
-            employmentType: '',
-            minSalary: '',
-            maxSalary: '',
-            experience: ''
-        });
-        setSearchQuery('');
-        setTimeout(loadData, 0); // Trigger reload with cleared state
+        setFilters({ jobRole: '', location: '', employmentType: '', minSalary: '', maxSalary: '', experience: '' });
+        setTimeout(() => loadData(), 100);
+    };
+
+    // AI Web Search Handler
+    const handleWebSearch = async () => {
+        const query = searchQuery.trim();
+        if (!query) {
+            setWebError('Please type something in the search box first.');
+            return;
+        }
+        setWebLoading(true);
+        setWebError('');
+        setShowWebResults(true);
+        setWebQuery(query);
+        setWebResults([]);
+        try {
+            const params = { q: query };
+            if (filters.location) params.location = filters.location;
+            if (filters.employmentType) params.job_type = filters.employmentType;
+            const res = await searchAPI.external(params);
+            setWebResults(res.data.results || []);
+        } catch (err) {
+            setWebError('Search failed. Please check the backend is running.');
+        } finally {
+            setWebLoading(false);
+        }
     };
 
     const handleLogout = async () => {
@@ -498,12 +525,53 @@ function SearcherDashboard() {
 
     const handleApply = async (jobId) => {
         try {
-            await applicationsAPI.apply({ job_id: jobId });
+            await applicationsAPI.apply({ 
+                job_id: jobId,
+                // Even though the backend might not currently save the bio in the Application model,
+                // we send it here so it can be added to their system later, or attached to their profile.
+                bio: generatedBio || undefined
+            });
             setApplyingTo(null);
+            setGeneratedBio('');
             await loadData();
             alert('Application submitted successfully!');
         } catch (err) {
             alert(err.response?.data?.detail || 'Failed to apply');
+        }
+    };
+    
+    const handleGenerateBio = async () => {
+        if (!applyingTo) return;
+        
+        setIsGeneratingBio(true);
+        setBioError('');
+        
+        try {
+            // First we need to get the user's latest resume data since it's not currently stored in the simple user object
+            // The profileAPI.get() should return the parsed resume JSON if the user uploaded one
+            const profileRes = await profileAPI.get();
+            const resumeData = profileRes.data.profile?.resumeData || profileRes.data.resumeData;
+            
+            if (!resumeData) {
+                setBioError("No resume data found. Please build or upload your resume first in the Resume Builder.");
+                setIsGeneratingBio(false);
+                return;
+            }
+            
+            const bioData = {
+                resume: resumeData,
+                job_role: applyingTo.title,
+                job_description: applyingTo.description || applyingTo.title
+            };
+            
+            const res = await profileAPI.generateBio(bioData);
+            setGeneratedBio(res.data.bio);
+            
+        } catch (err) {
+            console.error('Bio generation error:', err);
+            setBioError(err.response?.data?.detail || 'Failed to generate AI Bio. Please check your API configuration or try again.');
+        } finally {
+            setIsGeneratingBio(false);
         }
     };
 
@@ -549,6 +617,22 @@ function SearcherDashboard() {
                     <Link to="/builder" style={{ ...styles.actionBtn, ...styles.secondaryBtn, textDecoration: 'none' }}>
                         Build Resume
                     </Link>
+                    <button
+                        onClick={() => navigate('/searcher/web-search')}
+                        style={{
+                            ...styles.actionBtn,
+                            background: 'linear-gradient(135deg, #3A4B41 0%, #4A5D52 100%)',
+                            color: '#E6CFA6',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: '600',
+                            letterSpacing: '0.3px',
+                        }}
+                    >
+                        ✨ Search Web
+                    </button>
                     <div style={styles.userInfo}>
                         <div style={styles.userName}>{user?.profile?.fullName || 'User'}</div>
                         <div style={styles.userRole}>{user?.email}</div>
@@ -583,15 +667,16 @@ function SearcherDashboard() {
 
                         {activeTab === 'browse' && (
                             <>
-                                {/* Search */}
-                                <div style={{ position: 'relative', marginBottom: '20px' }}>
+                                {/* Search Bar */}
+                                <div style={{ position: 'relative', marginBottom: '12px' }}>
                                     <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
                                     <input
                                         type="text"
                                         placeholder="Search jobs by title or skills..."
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
-                                        style={{ ...styles.searchInput, paddingLeft: '44px', paddingRight: '120px' }}
+                                        onKeyDown={e => e.key === 'Enter' && handleWebSearch()}
+                                        style={{ ...styles.searchInput, paddingLeft: '44px', paddingRight: '180px' }}
                                     />
                                     <button
                                         style={{
@@ -602,20 +687,63 @@ function SearcherDashboard() {
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: '6px',
-                                            padding: '8px 16px',
+                                            padding: '8px 14px',
                                             background: Object.values(filters).some(Boolean) ? '#E6CFA6' : '#F3F4F6',
                                             border: 'none',
                                             borderRadius: '8px',
                                             cursor: 'pointer',
-                                            fontSize: '14px',
+                                            fontSize: '13px',
                                             fontWeight: '500',
                                             color: '#374151'
                                         }}
                                         onClick={() => setShowFilters(!showFilters)}
                                     >
-                                        <Filter size={16} /> Filters
+                                        <Filter size={15} /> Filters
                                     </button>
                                 </div>
+
+                                {/* AI Web Search Button */}
+                                <button
+                                    onClick={handleWebSearch}
+                                    disabled={webLoading}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px',
+                                        marginBottom: '20px',
+                                        background: webLoading
+                                            ? '#6B7280'
+                                            : 'linear-gradient(135deg, #3A4B41 0%, #4A5D52 100%)',
+                                        color: '#E6CFA6',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        fontSize: '14px',
+                                        fontWeight: '700',
+                                        cursor: webLoading ? 'not-allowed' : 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        letterSpacing: '0.5px',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    {webLoading ? (
+                                        <>
+                                            <div style={{
+                                                width: '16px', height: '16px',
+                                                border: '2px solid rgba(230,207,166,0.3)',
+                                                borderTop: '2px solid #E6CFA6',
+                                                borderRadius: '50%',
+                                                animation: 'spin 0.8s linear infinite'
+                                            }} />
+                                            Searching LinkedIn, Indeed, Internshala...
+                                        </>
+                                    ) : (
+                                        <>
+                                            ✨ Search Web for "{searchQuery || 'opportunities'}"
+                                        </>
+                                    )}
+                                </button>
 
                                 {loading ? (
                                     <div style={styles.loading}>
@@ -683,33 +811,12 @@ function SearcherDashboard() {
 
                                                 {job.required_skills?.length > 0 && (
                                                     <div style={styles.skillTags}>
-                                                        {job.required_skills.slice(0, 5).map((skill, i) => {
-                                                            const isMatched = job.match_details?.matched_skills?.includes(skill);
-                                                            return (
-                                                                <span
-                                                                    key={i}
-                                                                    style={{
-                                                                        ...styles.skillTag,
-                                                                        border: isMatched ? '1px solid #059669' : '1px solid #E5E7EB',
-                                                                        background: isMatched ? '#D1FAE5' : '#F9FAFB',
-                                                                        color: isMatched ? '#059669' : '#6B7280'
-                                                                    }}
-                                                                >
-                                                                    {isMatched && <Check size={10} style={{ marginRight: '3px' }} />}
-                                                                    {skill}
-                                                                </span>
-                                                            );
-                                                        })}
+                                                        {job.required_skills.slice(0, 5).map((skill, i) => (
+                                                            <span key={i} style={styles.skillTag}>{skill}</span>
+                                                        ))}
                                                         {job.required_skills.length > 5 && (
                                                             <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
                                                         )}
-                                                    </div>
-                                                )}
-
-                                                {job.match_details?.missing_skills?.length > 0 && (
-                                                    <div style={{ fontSize: '12px', color: '#DC2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <TrendingUp size={14} />
-                                                        {job.match_details.missing_skills.length} growth area{job.match_details.missing_skills.length > 1 ? 's' : ''} detected
                                                     </div>
                                                 )}
 
@@ -732,6 +839,113 @@ function SearcherDashboard() {
                                             </motion.div>
                                         );
                                     })
+                                )}
+
+                                {/* ─── AI Web Search Results ─── */}
+                                {showWebResults && (
+                                    <div style={{ marginTop: '32px' }}>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center',
+                                            justifyContent: 'space-between', marginBottom: '16px'
+                                        }}>
+                                            <div>
+                                                <h3 style={{
+                                                    fontFamily: "'Bebas Neue', sans-serif",
+                                                    fontSize: '1.6rem', color: '#3A4B41', letterSpacing: '1px'
+                                                }}>
+                                                    ✨ WEB RESULTS FOR "{webQuery.toUpperCase()}"
+                                                </h3>
+                                                <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                                                    Direct links from LinkedIn, Indeed, Internshala & more
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => setShowWebResults(false)}
+                                                style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', color: '#6B7280', fontSize: '13px' }}
+                                            >
+                                                <X size={14} /> Hide
+                                            </button>
+                                        </div>
+
+                                        {webError && (
+                                            <div style={{ padding: '16px', background: '#FEE2E2', borderRadius: '10px', color: '#DC2626', marginBottom: '16px', fontSize: '14px' }}>
+                                                ⚠ {webError}
+                                            </div>
+                                        )}
+
+                                        {webLoading ? (
+                                            <div style={styles.loading}><div style={styles.spinner} /></div>
+                                        ) : webResults.map((result, i) => (
+                                            <motion.div
+                                                key={result.id || i}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: i * 0.05 }}
+                                                style={{
+                                                    ...styles.jobCard,
+                                                    borderLeft: result.is_verified ? '3px solid #059669' : '3px solid #E5E7EB',
+                                                    position: 'relative'
+                                                }}
+                                            >
+                                                {/* Source badge */}
+                                                <div style={{
+                                                    display: 'flex', justifyContent: 'space-between',
+                                                    alignItems: 'flex-start', marginBottom: '8px'
+                                                }}>
+                                                    <div>
+                                                        <h3 style={{ ...styles.jobTitle, marginBottom: '2px' }}>{result.title}</h3>
+                                                        <div style={styles.jobCompany}>
+                                                            <Building size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                            {result.company}
+                                                        </div>
+                                                    </div>
+                                                    <span style={{
+                                                        padding: '4px 10px',
+                                                        background: result.is_verified ? '#D1FAE5' : '#F3F4F6',
+                                                        color: result.is_verified ? '#059669' : '#6B7280',
+                                                        borderRadius: '20px',
+                                                        fontSize: '11px',
+                                                        fontWeight: '600',
+                                                        whiteSpace: 'nowrap'
+                                                    }}>
+                                                        {result.is_verified ? '✓ ' : ''}{result.source}
+                                                    </span>
+                                                </div>
+
+                                                <div style={styles.jobMeta}>
+                                                    <span style={styles.jobMetaItem}><MapPin size={13} /> {result.location}</span>
+                                                    <span style={styles.jobMetaItem}><Briefcase size={13} /> {result.type}</span>
+                                                    {result.salary && (
+                                                        <span style={styles.jobMetaItem}><DollarSign size={13} /> {result.salary}</span>
+                                                    )}
+                                                </div>
+
+                                                {result.description_snippet && (
+                                                    <p style={{ fontSize: '13px', color: '#6B7280', margin: '10px 0', lineHeight: '1.5' }}>
+                                                        {result.description_snippet}
+                                                    </p>
+                                                )}
+
+                                                <div style={styles.jobActions}>
+                                                    <a
+                                                        href={result.apply_url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{
+                                                            ...styles.actionBtn,
+                                                            ...styles.primaryBtn,
+                                                            textDecoration: 'none',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
+                                                        }}
+                                                    >
+                                                        <ChevronRight size={16} /> Apply on {result.source}
+                                                    </a>
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </div>
                                 )}
                             </>
                         )}
@@ -978,50 +1192,72 @@ function SearcherDashboard() {
                                 <span>Your Resume Score:</span>
                                 <strong>{score?.total_score || 0}/100</strong>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>Match Percentage:</span>
-                                <strong style={{ color: getMatchColor(applyingTo.match_details?.score || 0).color }}>
-                                    {applyingTo.match_details?.score || 0}%
-                                </strong>
+                                <strong style={{ color: '#059669' }}>{applyingTo.match_percentage || 0}%</strong>
                             </div>
+                        </div>
 
-                            {/* Skills Match Breakdown */}
-                            <div style={{ marginTop: '16px' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4B5563', marginBottom: '8px' }}>SKILLS ANALYSIS</div>
-
-                                {applyingTo.match_details?.matched_skills?.length > 0 && (
-                                    <div style={{ marginBottom: '12px' }}>
-                                        <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                                            <Check size={14} /> Matched Skills
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                            {applyingTo.match_details.matched_skills.map((skill, i) => (
-                                                <small key={i} style={{ padding: '2px 8px', background: '#D1FAE5', color: '#059669', borderRadius: '4px' }}>
-                                                    {skill}
-                                                </small>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {applyingTo.match_details?.missing_skills?.length > 0 && (
-                                    <div>
-                                        <div style={{ fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                                            <X size={14} /> Missing Skills
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                            {applyingTo.match_details.missing_skills.map((skill, i) => (
-                                                <small key={i} style={{ padding: '2px 8px', background: '#FEE2E2', color: '#DC2626', borderRadius: '4px' }}>
-                                                    {skill}
-                                                </small>
-                                            ))}
-                                        </div>
-                                        <p style={{ fontSize: '11px', color: '#6B7280', marginTop: '8px', fontStyle: 'italic' }}>
-                                            Tip: Adding these skills to your resume could improve your matching score!
-                                        </p>
-                                    </div>
+                        {/* Bio Generation Section */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <div style={{ fontWeight: '600', color: '#374151', fontSize: '15px' }}>Tailored Job Bio</div>
+                                {!generatedBio && (
+                                    <button
+                                        onClick={handleGenerateBio}
+                                        disabled={isGeneratingBio}
+                                        style={{
+                                            ...styles.actionBtn,
+                                            padding: '8px 16px',
+                                            background: isGeneratingBio ? '#E5E7EB' : '#E6CFA6',
+                                            color: isGeneratingBio ? '#9CA3AF' : '#3A4B41',
+                                            fontSize: '13px'
+                                        }}
+                                    >
+                                        <Wand2 size={14} />
+                                        {isGeneratingBio ? 'Generating...' : 'Auto-Generate with AI'}
+                                    </button>
                                 )}
                             </div>
+                            
+                            {bioError && (
+                                <div style={{ padding: '12px', background: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>
+                                    {bioError}
+                                </div>
+                            )}
+
+                            {(generatedBio || isGeneratingBio) && (
+                                <textarea
+                                    value={generatedBio}
+                                    onChange={(e) => setGeneratedBio(e.target.value)}
+                                    placeholder={isGeneratingBio ? "Analyzing your resume and the job description to write the perfect bio..." : "Your tailored professional bio will appear here to be included with your application."}
+                                    disabled={isGeneratingBio}
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '120px',
+                                        padding: '12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #E5E7EB',
+                                        fontSize: '14px',
+                                        lineHeight: '1.5',
+                                        color: '#374151',
+                                        resize: 'vertical',
+                                        outline: 'none',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                            )}
+                            {generatedBio && !isGeneratingBio && (
+                                <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                    <span>{generatedBio.split(' ').filter(w => w.length > 0).length} words</span>
+                                    <button 
+                                        onClick={handleGenerateBio}
+                                        style={{ background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: '12px', padding: 0 }}
+                                    >
+                                        Regenerate
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>

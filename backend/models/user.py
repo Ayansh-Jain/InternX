@@ -31,10 +31,18 @@ class UserProfile(BaseModel):
     resumeData: Optional[Dict[str, Any]] = None  # For JOB_SEARCHER
 
 
+class UserScoreSnapshot(BaseModel):
+    """A point-in-time score snapshot for history tracking."""
+    total_score: int
+    breakdown: Dict[str, int] = {}
+    recorded_at: datetime
+
+
 class UserScore(BaseModel):
     total_score: int = 0
     breakdown: Dict[str, int] = {}
     last_updated: Optional[datetime] = None
+    score_history: List["UserScoreSnapshot"] = []  # Last 10 snapshots
 
 
 class UserBase(BaseModel):
