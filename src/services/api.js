@@ -79,6 +79,7 @@ export const profileAPI = {
     update: (data) => api.put('/profile', data),
     getScore: () => api.get('/profile/score'),
     refreshScore: () => api.post('/profile/score/refresh'),
+    generateBio: (data) => api.post('/generate-bio', data),
 };
 
 // Jobs API
@@ -90,6 +91,7 @@ export const jobsAPI = {
     update: (id, data) => api.put(`/jobs/${id}`, data),
     delete: (id) => api.delete(`/jobs/${id}`),
     getApplicants: (id, params) => api.get(`/jobs/${id}/applicants`, { params }),
+    predictMarket: (data) => api.post('/jobs/predict-market', data),
 };
 
 // Applications API

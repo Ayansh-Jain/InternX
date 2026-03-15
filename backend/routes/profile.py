@@ -16,6 +16,7 @@ from models.user import UserUpdate, UserResponse, UserRole, UserStatus, UserProf
 from auth.dependencies import get_current_user
 from database import Database, USERS_COLLECTION
 from services.scoring import calculate_resume_score, calculate_resume_score_vs_jd
+from services.ml import MLService
 
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
@@ -88,6 +89,30 @@ async def update_profile(
         update_data["score.total_score"] = score_result["total_score"]
         update_data["score.breakdown"] = score_result["breakdown"]
         update_data["score.last_updated"] = now
+
+    # Generate embedding if bio or resume data changes
+    if profile_data.bio is not None or profile_data.resumeData is not None:
+        # Construct text for embedding
+        # Use existing data combined with updates
+        current_profile = current_user.get("profile", {})
+        
+        bio = profile_data.bio if profile_data.bio is not None else current_profile.get("bio", "")
+        
+        resume_data = profile_data.resumeData if profile_data.resumeData is not None else current_profile.get("resumeData", {})
+        skills = []
+        if resume_data:
+             skills_dict = resume_data.get("skills", {})
+             skills.extend(skills_dict.get("technical", []))
+             skills.extend(skills_dict.get("tools", []))
+             skills.extend(skills_dict.get("soft", []))
+        
+        # Simple concatenation for now
+        text_to_embed = f"{bio} {' '.join(skills)}"
+        
+        # Generate embedding
+        embedding = MLService().generate_embedding(text_to_embed)
+        if embedding:
+            update_data["embedding"] = embedding
 
     await users_collection.update_one(
         {"_id": current_user["_id"]},
