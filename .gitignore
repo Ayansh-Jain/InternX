@@ -1,42 +1,33 @@
-<<<<<<< HEAD
+# Dependencies
 node_modules/
+backend/venv/
 dist/
 build/
+
+# Environment files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+backend/.env
+backend/.env.*
+
+# Python
+__pycache__/
+*.pyc
+backend/__pycache__/
+backend/*.pyc
+
+# Logs and temp files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+backend/test_output.txt
+
+# Editor/OS
 .vscode/
 .idea/
+.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# Backend
-backend/venv/
-backend/__pycache__/
-backend/*.pyc
-backend/.env
-backend/test_output.txt
-=======
-node_modules
-
-# Python
-__pycache__/
-*.pyc
-venv/
-
-# Environment files
-.env
-.env.*
-
-# Build artifacts
-dist/
-build/
->>>>>>> origin/kashish
