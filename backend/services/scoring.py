@@ -166,18 +166,9 @@ def _calculate_keyword_score(data: Dict, target_role: str, feedback: List) -> in
             if keyword in all_text:
                 matched_keywords.add(keyword)
     
-    # Score based on keyword count
+    # Score based on keyword count - Linear scaling (max 25 points at 10 keywords)
     keyword_count = len(matched_keywords)
-    if keyword_count >= 10:
-        score = 25
-    elif keyword_count >= 7:
-        score = 20
-    elif keyword_count >= 5:
-        score = 15
-    elif keyword_count >= 3:
-        score = 10
-    else:
-        score = keyword_count * 2
+    score = min(25, keyword_count * 2.5)
     
     if keyword_count < 5:
         feedback.append({
@@ -185,7 +176,7 @@ def _calculate_keyword_score(data: Dict, target_role: str, feedback: List) -> in
             "message": f"Add more relevant keywords for '{target_role or 'your target role'}'. Found {keyword_count} keywords."
         })
     
-    return score
+    return int(score)
 
 
 def _calculate_quantification(data: Dict, feedback: List) -> int:
@@ -207,14 +198,8 @@ def _calculate_quantification(data: Dict, feedback: List) -> int:
         
     metrics_count = len(numbers)
     
-    if metrics_count >= 6:
-        score = 20
-    elif metrics_count >= 4:
-        score = 15
-    elif metrics_count >= 2:
-        score = 10
-    else:
-        score = metrics_count * 4
+    # Linear scaling (max 20 points at 6 metrics)
+    score = min(20, metrics_count * 3.3)
     
     if metrics_count < 3:
         feedback.append({
@@ -222,7 +207,7 @@ def _calculate_quantification(data: Dict, feedback: List) -> int:
             "message": "Add quantified achievements (e.g., 'Increased sales by 25%', 'Managed team of 5')"
         })
     
-    return score
+    return int(score)
 
 
 def _calculate_action_verbs(data: Dict, feedback: List) -> int:
@@ -243,14 +228,8 @@ def _calculate_action_verbs(data: Dict, feedback: List) -> int:
     
     verb_count = len(found_verbs)
     
-    if verb_count >= 5:
-        score = 10
-    elif verb_count >= 3:
-        score = 7
-    elif verb_count >= 1:
-        score = 4
-    else:
-        score = 0
+    # Linear scaling (max 10 points at 5 verbs)
+    score = min(10, verb_count * 2.0)
     
     if verb_count < 3:
         feedback.append({
@@ -258,7 +237,7 @@ def _calculate_action_verbs(data: Dict, feedback: List) -> int:
             "message": "Start bullet points with strong action verbs (Led, Developed, Achieved, Implemented)"
         })
     
-    return score
+    return int(score)
 
 
 def _calculate_grammar_score(data: Dict, feedback: List) -> int:
