@@ -234,63 +234,29 @@ function Builder() {
 
         // Keywords (25 points) - more granular
         const technicalSkillsCount = data.skills.technical.length
-<<<<<<< HEAD
-        const keywordScore = Math.min(25, technicalSkillsCount * 3.5)
-=======
+
         const keywordScore = Math.min(25, technicalSkillsCount * 5)
         breakdown.keywords = keywordScore
->>>>>>> vinya
         score += keywordScore
 
         if (technicalSkillsCount < 5) {
             feedback.push({ type: 'improve', message: 'Add more technical skills relevant to your target role' })
         }
 
-<<<<<<< HEAD
-        // Quantification (20 points) - more granular
-        const expText = data.experience.map(e => e.responsibilities.join(' ')).join(' ')
-        const numberCount = (expText.match(/\d+/g) || []).length
-        const quantScore = Math.min(20, numberCount * 2.5 + (data.achievements?.length || 0) * 2)
-        score += quantScore
-=======
+
         // Impact & Quantification (25 points)
         const expText = data.experience.map(e => (e.responsibilities || []).join(' ')).join(' ')
         const numberCount = (expText.match(/\d+/g) || []).length
         const impactScore = Math.min(25, numberCount * 5 + (data.achievements?.length || 0) * 2)
         breakdown.impact = impactScore
         score += impactScore
->>>>>>> vinya
+
 
         if (numberCount < 3) {
             feedback.push({ type: 'improve', message: 'Add metrics to quantify your achievements' })
         }
 
-<<<<<<< HEAD
-        // Action verbs (10 points) - more granular
-        const actionVerbs = ['led', 'developed', 'created', 'managed', 'implemented', 'designed', 'built', 'increased', 'reduced', 'achieved', 'optimized', 'delivered']
-        const expLower = expText.toLowerCase()
-        const actionVerbCount = actionVerbs.filter(verb => expLower.includes(verb)).length
-        const actionScore = Math.min(10, actionVerbCount * 1.5)
-        score += actionScore
 
-        if (actionVerbCount < 3) {
-            feedback.push({ type: 'improve', message: 'Start bullet points with strong action verbs' })
-        }
-
-        // ATS Readability (15 points) - based on structure
-        let atsScore = 15
-        if (data.personal.email && !data.personal.email.includes('@')) atsScore -= 5
-        if (data.personal.phone && (data.personal.phone.replace(/\D/g, '').length < 10)) atsScore -= 5
-        score += atsScore
-
-        // Grammar placeholder (15 points) - adding slight variation
-        const grammarVariation = Math.floor(Math.random() * 4) + 10 // 10-14 points
-        score += grammarVariation
-        
-        // Final score with a tiny bit of random jitter (±1.5) to make it feel "calculated"
-        const jitter = (Math.random() * 3) - 1.5
-        const finalScore = Math.round(Math.max(10, Math.min(100, score + jitter)))
-=======
         // Readability & Action Verbs (25 points)
         const actionVerbs = ['led', 'developed', 'created', 'managed', 'implemented', 'designed', 'built', 'increased', 'reduced', 'achieved']
         const expLower = expText.toLowerCase()
@@ -298,17 +264,12 @@ function Builder() {
         const readScore = Math.min(25, actionVerbCount * 5 + 5) // Base 5
         breakdown.readability = readScore
         score += readScore
->>>>>>> vinya
 
         if (finalScore >= 70) {
             feedback.unshift({ type: 'success', message: 'Great job! Your resume is well-optimized' })
         }
 
-<<<<<<< HEAD
-        return { total: finalScore, feedback }
-=======
         return { total: Math.min(100, score), breakdown, feedback }
->>>>>>> vinya
     }
 
     const handleExportPDF = async () => {
