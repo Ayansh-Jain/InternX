@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ToastProvider } from './components/ui/Toast'
 import { ProtectedRoute, PublicRoute, RoleRedirect } from './components/auth/ProtectedRoute'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
@@ -26,7 +27,9 @@ const styles = {
 
 function App() {
     return (
+        <ToastProvider>
         <AuthProvider>
+
             <Routes>
                 {/* Public routes with Navbar/Footer */}
                 <Route path="/" element={
@@ -118,6 +121,7 @@ function App() {
                 } />
             </Routes>
         </AuthProvider>
+        </ToastProvider>
     )
 }
 
