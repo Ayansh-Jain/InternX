@@ -1,11 +1,12 @@
 from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 from services.scoring import calculate_resume_score
 from services.generator import optimize_resume_content
 from services.grammar import check_grammar
 from services.parser import parse_resume_pdf
+from services.bio_generator import process_bio_generation
 
 router = APIRouter()
 
@@ -66,6 +67,15 @@ class GenerateResponse(BaseModel):
     success: bool
     optimizedData: Optional[Dict[str, Any]] = None
     suggestions: List[str]
+
+class BioRequest(BaseModel):
+    resume: Union[Dict[str, Any], str]
+    job_role: str
+    job_description: str
+
+class BioResponse(BaseModel):
+    job_role: str
+    bio: str
 
 # Available templates
 TEMPLATES = [
@@ -163,3 +173,15 @@ async def parse_resume_endpoint(file: UploadFile = File(...)):
             "success": False,
             "error": f"Failed to parse resume: {str(e)}"
         }
+
+@router.post("/generate-bio", response_model=BioResponse)
+async def generate_bio_endpoint(data: BioRequest):
+    """
+    Generate a tailored professional bio using RAG based on the resume and job description.
+    """
+    try:
+        bio = process_bio_generation(data.resume, data.job_role, data.job_description)
+        return BioResponse(job_role=data.job_role, bio=bio)
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Failed to generate bio: {str(e)}")

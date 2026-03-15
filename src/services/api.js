@@ -79,6 +79,7 @@ export const profileAPI = {
     update: (data) => api.put('/profile', data),
     getScore: () => api.get('/profile/score'),
     refreshScore: () => api.post('/profile/score/refresh'),
+    generateBio: (data) => api.post('/generate-bio', data),
 };
 
 // Jobs API
@@ -116,6 +117,11 @@ export const adminAPI = {
     deleteJob: (id) => api.delete(`/admin/jobs/${id}`),
     getAnalytics: () => api.get('/admin/analytics'),
     getLogs: (params) => api.get('/admin/logs', { params }),
+};
+
+// External Job Search API
+export const searchAPI = {
+    external: (params) => api.get('/search/external', { params }),
 };
 
 export default api;

@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ToastProvider } from './components/ui/Toast'
 import { ProtectedRoute, PublicRoute, RoleRedirect } from './components/auth/ProtectedRoute'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
@@ -11,6 +12,7 @@ import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import ProviderDashboard from './pages/provider/ProviderDashboard.jsx'
 import SearcherDashboard from './pages/searcher/SearcherDashboard.jsx'
 import Profile from './pages/searcher/Profile.jsx'
+import WebSearch from './pages/searcher/WebSearch.jsx'
 
 const styles = {
     app: {
@@ -25,7 +27,9 @@ const styles = {
 
 function App() {
     return (
+        <ToastProvider>
         <AuthProvider>
+
             <Routes>
                 {/* Public routes with Navbar/Footer */}
                 <Route path="/" element={
@@ -93,6 +97,11 @@ function App() {
                         </div>
                     </ProtectedRoute>
                 } />
+                <Route path="/searcher/web-search" element={
+                    <ProtectedRoute allowedRoles={['JOB_SEARCHER']}>
+                        <WebSearch />
+                    </ProtectedRoute>
+                } />
                 <Route path="/searcher/*" element={
                     <ProtectedRoute allowedRoles={['JOB_SEARCHER']}>
                         <SearcherDashboard />
@@ -112,6 +121,7 @@ function App() {
                 } />
             </Routes>
         </AuthProvider>
+        </ToastProvider>
     )
 }
 
