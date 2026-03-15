@@ -134,6 +134,7 @@ function Builder() {
     const [formData, setFormData] = useState(defaultFormData)
     const [selectedTemplate, setSelectedTemplate] = useState('classic')
     const [resumeScore, setResumeScore] = useState(null)
+    const [scoreBreakdown, setScoreBreakdown] = useState(null)
     const [feedback, setFeedback] = useState(null)
     const [isGenerating, setIsGenerating] = useState(false)
     const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -194,12 +195,14 @@ function Builder() {
             })
             const result = await response.json()
             setResumeScore(result.score)
+            setScoreBreakdown(result.breakdown)
             setFeedback(result.feedback)
         } catch (error) {
             // Fallback: local scoring
-            const score = calculateLocalScore(formData)
-            setResumeScore(score.total)
-            setFeedback(score.feedback)
+            const result = calculateLocalScore(formData)
+            setResumeScore(result.total)
+            setScoreBreakdown(result.breakdown)
+            setFeedback(result.feedback)
         } finally {
             setIsAnalyzing(false)
         }
@@ -208,66 +211,61 @@ function Builder() {
     const calculateLocalScore = (data) => {
         let score = 0
         const feedback = []
+        const breakdown = {
+            completeness: 0,
+            impact: 0,
+            keywords: 0,
+            readability: 0
+        }
 
-        // Section completeness (15 points)
+        // Section completeness (25 points)
         let completeness = 0
-        if (data.personal.fullName && data.personal.email) completeness += 3
-        if (data.education[0]?.degree) completeness += 3
-        if (data.skills.technical.length > 0) completeness += 3
-        if (data.experience[0]?.company) completeness += 2
-        if (data.achievements?.length > 0) completeness += 2
-        if (data.target.jobRole) completeness += 3
+        if (data.personal.fullName && data.personal.email) completeness += 5
+        if (data.education[0]?.degree) completeness += 5
+        if (data.skills.technical.length > 0) completeness += 5
+        if (data.experience[0]?.company) completeness += 5
+        if (data.target.jobRole) completeness += 5
+        breakdown.completeness = completeness
         score += completeness
 
-        if (completeness < 15) {
+        if (completeness < 25) {
             feedback.push({ type: 'warning', message: 'Complete all sections for a better score' })
         }
 
         // Keywords (25 points) - simplified check
         const technicalSkillsCount = data.skills.technical.length
         const keywordScore = Math.min(25, technicalSkillsCount * 5)
+        breakdown.keywords = keywordScore
         score += keywordScore
 
         if (technicalSkillsCount < 5) {
             feedback.push({ type: 'improve', message: 'Add more technical skills relevant to your target role' })
         }
 
-        // Quantification (20 points)
-        const expText = data.experience.map(e => e.responsibilities.join(' ')).join(' ')
+        // Impact & Quantification (25 points)
+        const expText = data.experience.map(e => (e.responsibilities || []).join(' ')).join(' ')
         const numberCount = (expText.match(/\d+/g) || []).length
-        const quantScore = Math.min(20, numberCount * 3 + (data.achievements?.length || 0) * 2)
-        score += quantScore
+        const impactScore = Math.min(25, numberCount * 5 + (data.achievements?.length || 0) * 2)
+        breakdown.impact = impactScore
+        score += impactScore
 
         if (numberCount < 3) {
-            feedback.push({ type: 'improve', message: 'Add numbers and metrics to quantify your achievements' })
+            feedback.push({ type: 'improve', message: 'Add metrics to quantify your achievements' })
         }
 
-        // Action verbs (10 points)
+        // Readability & Action Verbs (25 points)
         const actionVerbs = ['led', 'developed', 'created', 'managed', 'implemented', 'designed', 'built', 'increased', 'reduced', 'achieved']
         const expLower = expText.toLowerCase()
         const actionVerbCount = actionVerbs.filter(verb => expLower.includes(verb)).length
-        const actionScore = Math.min(10, actionVerbCount * 2)
-        score += actionScore
-
-        if (actionVerbCount < 3) {
-            feedback.push({ type: 'improve', message: 'Start bullet points with strong action verbs' })
-        }
-
-        // ATS Readability (15 points) - based on structure
-        let atsScore = 15
-        if (!data.personal.email.includes('@')) atsScore -= 5
-        if (data.personal.phone.length < 10) atsScore -= 5
-        score += atsScore
-
-        // Grammar placeholder (15 points) - giving base score
-        score += 12
-        feedback.push({ type: 'tip', message: 'Proofread for grammar and spelling errors' })
+        const readScore = Math.min(25, actionVerbCount * 5 + 5) // Base 5
+        breakdown.readability = readScore
+        score += readScore
 
         if (score > 70) {
             feedback.unshift({ type: 'success', message: 'Great job! Your resume is well-optimized' })
         }
 
-        return { total: Math.min(100, score), feedback }
+        return { total: Math.min(100, score), breakdown, feedback }
     }
 
     const handleExportPDF = async () => {
@@ -383,7 +381,7 @@ function Builder() {
 
                         {(resumeScore !== null || feedback) && (
                             <div style={styles.resultsPanel}>
-                                <ScoreCard score={resumeScore} />
+                                <ScoreCard score={resumeScore} breakdown={scoreBreakdown} />
                                 <FeedbackPanel feedback={feedback} />
                             </div>
                         )}

@@ -11,6 +11,7 @@ VERB_REPLACEMENTS = {
     "worked on": "Developed",
     "helped with": "Contributed to",
     "was responsible for": "Managed",
+    "responsible for": "Managed",
     "did": "Executed",
     "made": "Created",
     "used": "Utilized",
@@ -20,7 +21,18 @@ VERB_REPLACEMENTS = {
     "had to": "Led",
     "helped": "Assisted",
     "tried to": "Endeavored to",
-    "was in charge of": "Oversaw"
+    "was in charge of": "Oversaw",
+    "handled": "Managed",
+    "took care of": "Oversaw",
+    "was involved in": "Contributed to",
+    "participated in": "Engaged in",
+    "assisted in": "Supported",
+    "involved in": "Contributed to",
+    "duties included": "Delivered",
+    "was tasked with": "Executed",
+    "contributed to": "Advanced",
+    "worked towards": "Drove",
+    "was employed to": "Served to",
 }
 
 # Filler words to remove
@@ -142,45 +154,65 @@ def _optimize_description(description: str) -> str:
     return optimized
 
 
-def _generate_suggestions(data: Dict[str, Any]) -> List[str]:
-    """Generate actionable suggestions for improvement."""
-    suggestions = []
-    
+def _generate_suggestions(data: Dict[str, Any]) -> Dict[str, List[str]]:
+    """
+    Generate categorized, actionable suggestions.
+
+    Returns:
+        Dict with 'critical' (must-fix) and 'tips' (nice-to-have) lists.
+    """
+    critical = []
+    tips = []
+
     # Check experience bullet points
     experience = data.get("experience", [])
     for i, exp in enumerate(experience):
         responsibilities = exp.get("responsibilities", [])
         for j, resp in enumerate(responsibilities):
             if resp:
-                # Check for quantification
                 if not re.search(r'\d+', resp):
-                    suggestions.append(
+                    critical.append(
                         f"Experience {i+1}, bullet {j+1}: Add metrics or numbers to quantify your impact"
                     )
-                
-                # Check for weak starting verbs
+
                 first_word = resp.split()[0].lower() if resp.split() else ""
                 weak_starters = ["i", "my", "the", "a", "an", "was", "were", "did", "had", "helped"]
                 if first_word in weak_starters:
-                    suggestions.append(
+                    critical.append(
                         f"Experience {i+1}, bullet {j+1}: Start with a strong action verb"
                     )
-    
+
     # Check skills count
     skills = data.get("skills", {})
     technical_count = len(skills.get("technical", []))
     if technical_count < 5:
-        suggestions.append(
-            f"Add {5 - technical_count} more technical skills relevant to your target role"
-        )
-    
+        critical.append(f"Add {5 - technical_count} more technical skills relevant to your target role")
+    elif technical_count < 8:
+        tips.append(f"Consider adding {8 - technical_count} more technical skills to strengthen your profile")
+
+    # Check for soft skills
+    soft_count = len(skills.get("soft", []))
+    if soft_count < 3:
+        tips.append("Add 2-3 soft skills (e.g., Communication, Team Leadership, Problem-Solving)")
+
     # Check for target role alignment
     target_role = data.get("target", {}).get("jobRole", "")
     if not target_role:
-        suggestions.append("Specify your target job role for better keyword optimization")
-    
-    # Limit suggestions
-    return suggestions[:5]
+        critical.append("Specify your target job role for better keyword optimization")
+
+    # Check for projects section
+    projects = data.get("projects", [])
+    if not projects:
+        tips.append("Add a projects section to showcase hands-on experience")
+    elif len(projects) < 2:
+        tips.append("Add one more project to demonstrate a broader skillset")
+
+    # Check LinkedIn/GitHub presence
+    personal = data.get("personal", {})
+    if not personal.get("linkedIn") and not personal.get("github"):
+        critical.append("Add a LinkedIn or GitHub profile URL — recruiters will look for this")
+
+    return {"critical": critical, "tips": tips}
 
 
 def suggest_action_verbs(category: str = None) -> List[str]:
@@ -196,11 +228,22 @@ def suggest_action_verbs(category: str = None) -> List[str]:
 
 
 def format_phone_number(phone: str) -> str:
-    """Format phone number for consistency."""
+    """Format phone number with region-aware formatting.
+    Supports Indian (10-digit) and US (10/11-digit with country code) numbers.
+    """
     digits = re.sub(r'\D', '', phone)
+    # Indian: 10 digits starting with 6-9 (no country code)
+    if len(digits) == 10 and digits[0] in '6789':
+        return f"+91 {digits[:5]} {digits[5:]}"
+    # Indian with country code
+    if len(digits) == 12 and digits[:2] == '91':
+        local = digits[2:]
+        return f"+91 {local[:5]} {local[5:]}"
+    # US: 10 digits
     if len(digits) == 10:
         return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
-    elif len(digits) == 11 and digits[0] == '1':
+    # US with country code
+    if len(digits) == 11 and digits[0] == '1':
         return f"+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
     return phone
 
