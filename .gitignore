@@ -1,3 +1,40 @@
+
+# Dependencies
+node_modules/
+backend/venv/
+dist/
+build/
+
+# Environment files
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+# Python
+__pycache__/
+*.pyc
 venv/
 backend/venv/
-node_modules/
+backend/__pycache__/
+backend/*.pyc
+
+# Logs and temp files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+backend/test_output.txt
+
+# Editor/OS
+.vscode/
+.idea/
+.vite/
+.pytest_cache/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+
