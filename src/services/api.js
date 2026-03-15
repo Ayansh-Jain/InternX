@@ -79,6 +79,7 @@ export const profileAPI = {
     update: (data) => api.put('/profile', data),
     getScore: () => api.get('/profile/score'),
     refreshScore: () => api.post('/profile/score/refresh'),
+    generateBio: (data) => api.post('/generate-bio', data),
 };
 
 // Jobs API

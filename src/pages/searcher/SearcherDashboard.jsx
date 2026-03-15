@@ -8,7 +8,7 @@ import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
     CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X,
-    Check, ArrowRight
+    Check, ArrowRight, Wand2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { jobsAPI, applicationsAPI, profileAPI } from '../../services/api';
@@ -425,6 +425,9 @@ function SearcherDashboard() {
     const [searchQuery, setSearchQuery] = useState('');
     const [applyingTo, setApplyingTo] = useState(null);
     const [typingTimeout, setTypingTimeout] = useState(null);
+    const [generatedBio, setGeneratedBio] = useState('');
+    const [isGeneratingBio, setIsGeneratingBio] = useState(false);
+    const [bioError, setBioError] = useState('');
 
     useEffect(() => {
         loadData();
@@ -498,12 +501,53 @@ function SearcherDashboard() {
 
     const handleApply = async (jobId) => {
         try {
-            await applicationsAPI.apply({ job_id: jobId });
+            await applicationsAPI.apply({ 
+                job_id: jobId,
+                // Even though the backend might not currently save the bio in the Application model,
+                // we send it here so it can be added to their system later, or attached to their profile.
+                bio: generatedBio || undefined
+            });
             setApplyingTo(null);
+            setGeneratedBio('');
             await loadData();
             alert('Application submitted successfully!');
         } catch (err) {
             alert(err.response?.data?.detail || 'Failed to apply');
+        }
+    };
+    
+    const handleGenerateBio = async () => {
+        if (!applyingTo) return;
+        
+        setIsGeneratingBio(true);
+        setBioError('');
+        
+        try {
+            // First we need to get the user's latest resume data since it's not currently stored in the simple user object
+            // The profileAPI.get() should return the parsed resume JSON if the user uploaded one
+            const profileRes = await profileAPI.get();
+            const resumeData = profileRes.data.profile?.resumeData || profileRes.data.resumeData;
+            
+            if (!resumeData) {
+                setBioError("No resume data found. Please build or upload your resume first in the Resume Builder.");
+                setIsGeneratingBio(false);
+                return;
+            }
+            
+            const bioData = {
+                resume: resumeData,
+                job_role: applyingTo.title,
+                job_description: applyingTo.description || applyingTo.title
+            };
+            
+            const res = await profileAPI.generateBio(bioData);
+            setGeneratedBio(res.data.bio);
+            
+        } catch (err) {
+            console.error('Bio generation error:', err);
+            setBioError(err.response?.data?.detail || 'Failed to generate AI Bio. Please check your API configuration or try again.');
+        } finally {
+            setIsGeneratingBio(false);
         }
     };
 
@@ -1022,6 +1066,68 @@ function SearcherDashboard() {
                                     </div>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Bio Generation Section */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <div style={{ fontWeight: '600', color: '#374151', fontSize: '15px' }}>Tailored Job Bio</div>
+                                {!generatedBio && (
+                                    <button
+                                        onClick={handleGenerateBio}
+                                        disabled={isGeneratingBio}
+                                        style={{
+                                            ...styles.actionBtn,
+                                            padding: '8px 16px',
+                                            background: isGeneratingBio ? '#E5E7EB' : '#E6CFA6',
+                                            color: isGeneratingBio ? '#9CA3AF' : '#3A4B41',
+                                            fontSize: '13px'
+                                        }}
+                                    >
+                                        <Wand2 size={14} />
+                                        {isGeneratingBio ? 'Generating...' : 'Auto-Generate with AI'}
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {bioError && (
+                                <div style={{ padding: '12px', background: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>
+                                    {bioError}
+                                </div>
+                            )}
+
+                            {(generatedBio || isGeneratingBio) && (
+                                <textarea
+                                    value={generatedBio}
+                                    onChange={(e) => setGeneratedBio(e.target.value)}
+                                    placeholder={isGeneratingBio ? "Analyzing your resume and the job description to write the perfect bio..." : "Your tailored professional bio will appear here to be included with your application."}
+                                    disabled={isGeneratingBio}
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '120px',
+                                        padding: '12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #E5E7EB',
+                                        fontSize: '14px',
+                                        lineHeight: '1.5',
+                                        color: '#374151',
+                                        resize: 'vertical',
+                                        outline: 'none',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                            )}
+                            {generatedBio && !isGeneratingBio && (
+                                <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '8px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                    <span>{generatedBio.split(' ').filter(w => w.length > 0).length} words</span>
+                                    <button 
+                                        onClick={handleGenerateBio}
+                                        style={{ background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: '12px', padding: 0 }}
+                                    >
+                                        Regenerate
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>

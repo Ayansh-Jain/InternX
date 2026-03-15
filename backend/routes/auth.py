@@ -79,7 +79,6 @@ async def signup(user_data: UserCreate):
             "last_updated": None
         },
         "created_at": now,
-        "created_at": now,
         "updated_at": now
     }
     
