@@ -13,8 +13,10 @@ from models.job import (
     JobCreate, JobUpdate, JobResponse, JobListResponse, 
     JobStatus, SalaryRange, JobStats, EmploymentType, MatchDetails
 )
+from pydantic import BaseModel
 from auth.dependencies import get_current_user, require_job_provider, get_current_user_optional
 from database import Database, JOBS_COLLECTION, USERS_COLLECTION, APPLICATIONS_COLLECTION
+from services.ml import MLService
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -415,3 +417,36 @@ async def get_job_applicants(
         "page": page,
         "limit": limit
     }
+
+
+class PredictMarketRequest(BaseModel):
+    title: str
+    description: str
+
+
+@router.post("/predict-market")
+async def predict_market(
+    data: PredictMarketRequest,
+    current_user: dict = Depends(require_job_provider)
+):
+    """
+    Predict audience distribution for a potential job posting.
+    """
+    users_collection = Database.get_collection(USERS_COLLECTION)
+    
+    # Fetch all job searchers with embeddings
+    # Limit to 1000 for performance for now
+    cursor = users_collection.find(
+        {
+            "role": UserRole.JOB_SEARCHER.value, 
+            "embedding": {"$exists": True, "$ne": []}
+        },
+        {"embedding": 1, "role": 1, "profile": 1}
+    ).limit(1000)
+    
+    users = await cursor.to_list(length=1000)
+    
+    text_to_analyze = f"{data.title} {data.description}"
+    distribution = MLService().predict_audience(text_to_analyze, users)
+    
+    return distribution

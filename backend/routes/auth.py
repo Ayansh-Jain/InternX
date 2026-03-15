@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 import random
 import string
+from pydantic import BaseModel, EmailStr
 
 from models.user import (
     UserCreate, UserLogin, UserResponse, Token, UserRole, UserStatus,
@@ -15,7 +16,7 @@ from models.user import (
 from auth.security import get_password_hash, verify_password, create_tokens, decode_token
 from auth.dependencies import get_current_user
 from database import Database, USERS_COLLECTION
-from pydantic import BaseModel, EmailStr
+from services.ml import MLService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -83,6 +84,12 @@ async def signup(user_data: UserCreate):
         "created_at": now,
         "updated_at": now
     }
+    
+    # Generate embedding if applicable (usually empty on signup but good practice)
+    text_to_embed = f"{user_data.fullName} {user_doc['profile']['bio']}"
+    embedding = MLService().generate_embedding(text_to_embed)
+    if embedding:
+        user_doc["embedding"] = embedding
     
     # Insert user
     result = await users_collection.insert_one(user_doc)
