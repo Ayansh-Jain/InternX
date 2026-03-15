@@ -3,20 +3,13 @@ AI-powered external job search service.
 Uses JSearch API (via RapidAPI) when available.
 Falls back to a smart template-based generator that produces realistic job listings
 using real company names, role-specific descriptions, and INR salaries.
-<<<<<<< HEAD
-"""
-
-import os
-import uuid
-import random
-=======
 Results rotate daily so the same search shows fresh listings each day.
 """
 
 import os
 import random
 from datetime import datetime, timedelta
->>>>>>> vinya
+
 import httpx
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -36,84 +29,7 @@ TRUSTED_DOMAINS = [
 
 # ── Platform URL builders ─────────────────────────────────────────────────────
 PLATFORMS = [
-<<<<<<< HEAD
-    {"name": "LinkedIn",    "url": lambda q, l: f"https://www.linkedin.com/jobs/search/?keywords={quote_plus(q)}&location={quote_plus(l or '')}"},
-    {"name": "Indeed",      "url": lambda q, l: f"https://www.indeed.com/jobs?q={quote_plus(q)}&l={quote_plus(l or '')}"},
-    {"name": "Internshala", "url": lambda q, l: f"https://internshala.com/internships/{quote_plus(q).replace('+','-').lower()}-internship"},
-    {"name": "Naukri",      "url": lambda q, l: f"https://www.naukri.com/{quote_plus(q).replace('+','-').lower()}-jobs"},
-    {"name": "Unstop",      "url": lambda q, l: f"https://unstop.com/jobs?search={quote_plus(q)}"},
-    {"name": "Wellfound",   "url": lambda q, l: f"https://wellfound.com/jobs?role={quote_plus(q)}"},
-    {"name": "Glassdoor",   "url": lambda q, l: f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={quote_plus(q)}"},
-    {"name": "Devfolio",    "url": lambda q, l: "https://devfolio.co/hackathons"},
-]
 
-# ── Template data pools ───────────────────────────────────────────────────────
-TECH_COMPANIES = [
-    "Google", "Microsoft", "Amazon", "Flipkart", "Swiggy", "Zomato",
-    "Razorpay", "CRED", "Meesho", "Zepto", "Groww", "PhonePe",
-    "Freshworks", "Zoho", "Infosys", "Wipro", "TCS", "HCL",
-    "Paytm", "Ola", "Dunzo", "Slice", "Open Financial", "Postman",
-    "BrowserStack", "InMobi", "Truecaller", "Nykaa", "Lenskart",
-    "Dream11", "MPL", "Vedantu", "Unacademy", "BYJU'S", "upGrad",
-    "Springworks", "Chargebee", "Hasura", "Setu", "Sarvam AI",
-]
-
-NON_TECH_COMPANIES = [
-    "Deloitte", "PwC", "EY", "KPMG", "McKinsey & Company",
-    "Boston Consulting Group", "Accenture", "Capgemini",
-    "HDFC Bank", "ICICI Bank", "Axis Bank", "Kotak Mahindra Bank",
-    "Reliance Industries", "Tata Consultancy Services", "Mahindra", "Bajaj",
-    "Aditya Birla Group", "ITC", "Hindustan Unilever",
-]
-
-# Domain-specific company pools — matched to role keywords
-COMPANY_POOLS = {
-    # Frontend / React / Mobile
-    "react":    ["Flipkart", "Swiggy", "Meesho", "Razorpay", "CRED", "Nykaa", "Lenskart", "Postman"],
-    "frontend": ["Flipkart", "Zomato", "Meesho", "CRED", "Razorpay", "Dunzo", "BrowserStack", "InMobi"],
-    "mobile":   ["Paytm", "PhonePe", "Ola", "Swiggy", "Dream11", "MPL", "Truecaller", "Nykaa"],
-    "android":  ["Paytm", "PhonePe", "Truecaller", "Ola", "Dream11", "Swiggy", "Meesho", "Lenskart"],
-    "ios":      ["Phonepe", "Ola", "Swiggy", "Dream11", "Nykaa", "CRED", "Razorpay", "Lenskart"],
-    # Backend / Infrastructure
-    "backend":  ["Google", "Microsoft", "Freshworks", "Chargebee", "Hasura", "Setu", "Postman", "Zoho"],
-    "node":     ["Freshworks", "Chargebee", "Hasura", "Razorpay", "Postman", "Springworks", "Zoho", "Setu"],
-    "python":   ["Google", "Microsoft", "Freshworks", "Sarvam AI", "Zoho", "Hasura", "Chargebee", "upGrad"],
-    "java":     ["TCS", "Infosys", "Wipro", "HCL", "Freshworks", "Zoho", "Capgemini", "Accenture"],
-    "golang":   ["Google", "Microsoft", "Razorpay", "Postman", "Hasura", "BrowserStack", "Gojek", "Setu"],
-    "devops":   ["Google", "Microsoft", "Amazon", "Freshworks", "BrowserStack", "Chargebee", "Postman", "Hasura"],
-    "cloud":    ["Google", "Microsoft", "Amazon", "Infosys", "TCS", "Wipro", "Capgemini", "HCL"],
-    # Data / Analytics / ML / AI
-    "data":     ["Google", "Microsoft", "Flipkart", "Swiggy", "Zomato", "Razorpay", "Meesho", "Zepto"],
-    "analytics":["Flipkart", "Swiggy", "Myntra", "Amazon", "Jio", "BigBasket", "Meesho", "PhonePe"],
-    "machine learning": ["Google", "Microsoft", "Sarvam AI", "Amazon", "Flipkart", "upGrad", "Freshworks", "Zepto"],
-    "ml":       ["Google", "Microsoft", "Sarvam AI", "Amazon", "Flipkart", "Razorpay", "Groww", "Zepto"],
-    "ai":       ["Google", "Microsoft", "Sarvam AI", "Amazon", "Freshworks", "upGrad", "Postman", "Hasura"],
-    "nlp":      ["Google", "Microsoft", "Sarvam AI", "Amazon", "Freshworks", "BrowserStack", "Sprinklr", "Zoho"],
-    # Design / UX
-    "design":   ["Flipkart", "Swiggy", "CRED", "Razorpay", "Nykaa", "Meesho", "Lenskart", "Dunzo"],
-    "ux":       ["Flipkart", "CRED", "Swiggy", "Razorpay", "Nykaa", "Lenskart", "Dream11", "Meesho"],
-    "ui":       ["Flipkart", "CRED", "Swiggy", "Razorpay", "Nykaa", "Lenskart", "Dream11", "Meesho"],
-    # Product / Growth
-    "product":  ["Razorpay", "CRED", "Groww", "Slice", "PhonePe", "Meesho", "Zepto", "Open Financial"],
-    "growth":   ["Swiggy", "Zomato", "Meesho", "CRED", "Razorpay", "Dream11", "Nykaa", "upGrad"],
-    # Finance / Fintech
-    "finance":  ["Zerodha", "Groww", "Razorpay", "HDFC Bank", "ICICI Bank", "Slice", "PhonePe", "Paytm"],
-    "fintech":  ["Razorpay", "Groww", "Zerodha", "Slice", "Open Financial", "PhonePe", "Paytm", "BharatPe"],
-    "banking":  ["HDFC Bank", "ICICI Bank", "Axis Bank", "Kotak Mahindra", "SBI", "Yes Bank", "IndusInd Bank", "RBL Bank"],
-    # Marketing / Content
-    "marketing":["Zomato", "Swiggy", "Nykaa", "CRED", "Meesho", "Lenskart", "upGrad", "Dunzo"],
-    "content":  ["upGrad", "BYJU'S", "Unacademy", "Vedantu", "Zomato", "Swiggy", "Nykaa", "CRED"],
-    # Education / Edtech
-    "edtech":   ["BYJU'S", "Unacademy", "Vedantu", "upGrad", "Classplus", "Doubtnut", "Toppr", "Eruditus"],
-    # Consulting
-    "consulting":["Deloitte", "PwC", "EY", "KPMG", "McKinsey & Company", "BCG", "Accenture", "Capgemini"],
-    # Security
-    "security":  ["Microsoft", "Google", "BrowserStack", "Wipro", "TCS", "HCL", "Infosys", "Accenture"],
-    # Hackathon
-    "hackathon": ["Unstop", "Devfolio", "HackerEarth", "CodeChef", "Smart India Hackathon", "HackIndia", "GitHub", "MLH"],
-    # Generic tech (default)
-    "default":  ["Google", "Microsoft", "Flipkart", "Swiggy", "Razorpay", "CRED", "Zepto", "Freshworks"],
-=======
     {"name": "LinkedIn",    "url": lambda t, c, l: f"https://www.linkedin.com/jobs/search/?keywords={quote_plus(f'{t} {c}')}&location={quote_plus(l or '')}"},
     {"name": "Indeed",      "url": lambda t, c, l: f"https://www.indeed.com/jobs?q={quote_plus(f'{t} {c}')}&l={quote_plus(l or '')}"},
     {"name": "Internshala", "url": lambda t, c, l: f"https://internshala.com/internships/work-from-home-internships/?search_query={quote_plus(f'{t} {c}')}"},
@@ -150,7 +66,7 @@ COMPANY_POOLS = {
     "marketing":["Growth Marketing Agency", "Consumer Brand MNC", "Digital Strategy House"],
     "consulting":["Global Management Consulting", "Strategy & Operations Firm", "IT Advisory House"],
     "default":  ["Tech-first MNC", "High-growth Startup", "Product Innovation Lab"]
->>>>>>> vinya
+
 }
 
 CITIES = [
@@ -290,15 +206,11 @@ def _pick_companies(query: str, job_type: Optional[str], count: int, seed: int) 
     rng = random.Random(seed)
     shuffled = pool[:]
     rng.shuffle(shuffled)
-<<<<<<< HEAD
-    # If we need more companies than the pool has, extend with the default pool
-    if len(shuffled) < count:
-        extra = COMPANY_POOLS["default"][:]
-=======
+
     # If we need more companies than the pool has, extend with the tech descriptors
     if len(shuffled) < count:
         extra = GENERIC_TECH_DESCRIPTORS[:]
->>>>>>> vinya
+
         rng.shuffle(extra)
         for c in extra:
             if c not in shuffled:
@@ -337,15 +249,12 @@ def _generate_smart_listings(
     - Salary/stipend is appropriate to the opportunity type
     - Results are deterministic (same search = same results)
     """
-<<<<<<< HEAD
-    # Deterministic seed from query so same search = same results
-    seed = hash(query.lower().strip() + (job_type or '') + (location or ''))
-=======
+
     # Daily-rotating seed: same search returns same results within a day,
     # but refreshes each new day so users see fresh listings.
     today = datetime.utcnow().strftime("%Y-%m-%d")
     seed = hash(query.lower().strip() + (job_type or '') + (location or '') + today)
->>>>>>> vinya
+
 
     rng = random.Random(seed)
     companies = _pick_companies(query, job_type, count, seed)
@@ -354,31 +263,16 @@ def _generate_smart_listings(
     platforms_shuffled = PLATFORMS[:]
     rng.shuffle(platforms_shuffled)
 
-<<<<<<< HEAD
-=======
+
     # Offsets for posted_at so each listing appears to have been posted 1-10 days ago
     day_offsets = list(range(1, 11))
     rng.shuffle(day_offsets)
-
->>>>>>> vinya
     results = []
     for i in range(min(count, len(companies))):
         platform = platforms_shuffled[i % len(platforms_shuffled)]
         wm = _get_work_mode_label(work_mode, location)
         job_location = "Remote" if wm == "Remote" else loc
-<<<<<<< HEAD
 
-        results.append({
-            "id": f"smart-{abs(seed) % 99999:05d}-{i}",
-            "title": _build_title(query, job_type),
-            "company": companies[i],
-            "location": job_location,
-            "type": (job_type.title() if job_type else "Full-Time"),
-            "salary": _get_salary(job_type),
-            "apply_url": platform["url"](query, location),
-            "source": platform["name"],
-            "posted_at": None,
-=======
         posted_date = (datetime.utcnow() - timedelta(days=day_offsets[i % len(day_offsets)])).isoformat() + "Z"
         
         job_title = _build_title(query, job_type)
@@ -394,7 +288,7 @@ def _generate_smart_listings(
             "apply_url": platform["url"](job_title, company_name, job_location),
             "source": platform["name"],
             "posted_at": posted_date,
->>>>>>> vinya
+
             "description_snippet": _get_description(query, job_type),
             "is_verified": True,
             "logo": None,
@@ -500,16 +394,12 @@ async def search_external_jobs(
         except Exception as e:
             print(f"[job_search] JSearch API error: {e}")
 
-<<<<<<< HEAD
-    # Step 3: Fall back to smart template listings
-    if not results:
-        source_used = "smart_listings"
-=======
+
     # Step 3: Fall back to smart template listings ONLY if no results were found
     if not results:
         source_used = "smart_listings"
         # Using generic descriptors instead of specific company names to avoid "fake" data
->>>>>>> vinya
+
         results = _generate_smart_listings(query, location, job_type, work_mode)
 
     return {

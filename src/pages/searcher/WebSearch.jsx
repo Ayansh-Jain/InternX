@@ -207,12 +207,7 @@ const S = {
         display: 'flex', alignItems: 'center', gap: '10px',
     },
     emptyBox: {
-<<<<<<< HEAD
-        textAlign: 'center', padding: '60px 20px',
-        background: 'white', borderRadius: '14px', border: '1px solid #E5E7EB',
-        color: '#6B7280',
-    },
-=======
+
         textAlign: 'center', padding: '60px 40px',
         background: 'white', borderRadius: '14px', border: '1px solid #E5E7EB',
         color: '#6B7280',
@@ -238,7 +233,7 @@ const S = {
     tipDot: {
         width: '6px', height: '6px', background: '#94A3B8', borderRadius: '50%', marginTop: '6px', flexShrink: 0,
     },
->>>>>>> vinya
+
     verifiedDot: {
         position: 'absolute', top: 0, left: 0,
         width: '4px', height: '100%',
@@ -274,8 +269,7 @@ function getSourceStyle(source) {
     return SOURCE_COLORS[source] || { bg: '#F3F4F6', color: '#374151' };
 }
 
-<<<<<<< HEAD
-=======
+
 const formatRelativeDate = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -289,7 +283,7 @@ const formatRelativeDate = (isoString) => {
     return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 
->>>>>>> vinya
+
 /* ─── Component ─── */
 export default function WebSearch() {
     const navigate = useNavigate();
@@ -540,13 +534,10 @@ export default function WebSearch() {
                                         {results.length} opportunit{results.length !== 1 ? 'ies' : 'y'} found
                                     </span>
                                     {sourceUsed === 'smart_listings' && (
-<<<<<<< HEAD
-                                        <div style={{ fontSize: '11px', color: '#6366F1', marginTop: '3px', fontWeight: '600' }}>
-                                            ✨ Smart Match · Apply links open live platform search
-=======
+
                                         <div style={{ fontSize: '11px', color: '#4F46E5', marginTop: '4px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                                             <Clock size={12} /> Results refreshed today
->>>>>>> vinya
+
                                         </div>
                                     )}
                                 </div>
@@ -554,11 +545,7 @@ export default function WebSearch() {
 
                             {results.length === 0 ? (
                                 <div style={S.emptyBox}>
-<<<<<<< HEAD
-                                    <Globe size={40} color="#D1D5DB" style={{ marginBottom: '12px' }} />
-                                    <h3 style={{ color: '#374151', marginBottom: '6px' }}>No results found</h3>
-                                    <p style={{ fontSize: '14px' }}>Try a different role, type, or location.</p>
-=======
+
                                     <Globe size={48} color="#94A3B8" style={{ marginBottom: '16px', opacity: 0.5 }} />
                                     <h3 style={{ color: '#1E293B', fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>
                                         No Live Vacancies Found
@@ -591,7 +578,7 @@ export default function WebSearch() {
                                             </div>
                                         </div>
                                     </div>
->>>>>>> vinya
+
                                 </div>
                             ) : (
                                 results.map((r, i) => {
@@ -645,17 +632,12 @@ export default function WebSearch() {
                                                         </span>
                                                     )}
                                                     {r.posted_at && (
-<<<<<<< HEAD
-                                                        <span style={S.metaItem}>
-                                                            <Clock size={13} />
-                                                            {new Date(r.posted_at).toLocaleDateString('en-IN', {
-                                                                day: 'numeric', month: 'short'
-                                                            })}
-=======
+
+
                                                         <span style={S.metaItem} title={new Date(r.posted_at).toLocaleString()}>
                                                             <Clock size={13} />
                                                             {formatRelativeDate(r.posted_at)}
->>>>>>> vinya
+
                                                         </span>
                                                     )}
                                                 </div>
@@ -680,12 +662,7 @@ export default function WebSearch() {
                                                     {r.ai_generated && (
                                                         <span style={{
                                                             fontSize: '11px', color: '#6366F1',
-<<<<<<< HEAD
-                                                            background: '#EEF2FF', padding: '4px 10px',
-                                                            borderRadius: '20px', fontWeight: '600',
-                                                        }}>
-                                                            ✨ Smart Match
-=======
+
                                                             background: '#F0F4FF', padding: '5px 12px',
                                                             borderRadius: '20px', fontWeight: '700',
                                                             display: 'flex', alignItems: 'center', gap: '5px',
@@ -694,7 +671,7 @@ export default function WebSearch() {
                                                             animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                                                         }}>
                                                             <Sparkles size={11} /> Smart Match
->>>>>>> vinya
+
                                                         </span>
                                                     )}
                                                 </div>
