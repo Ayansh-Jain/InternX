@@ -15,11 +15,9 @@ from pydantic import BaseModel
 from models.user import UserUpdate, UserResponse, UserRole, UserStatus, UserProfile, UserScore
 from auth.dependencies import get_current_user
 from database import Database, USERS_COLLECTION
-<<<<<<< HEAD
-from services.scoring import calculate_resume_score
-=======
+
 from services.scoring import calculate_resume_score, calculate_resume_score_vs_jd
->>>>>>> vinya
+
 from services.ml import MLService
 
 router = APIRouter(prefix="/profile", tags=["Profile"])
@@ -74,13 +72,7 @@ async def update_profile(
 
     if profile_data.resumeData:
         score_result = calculate_resume_score(profile_data.resumeData)
-<<<<<<< HEAD
-        update_data["score"] = {
-            "total_score": score_result["total_score"],
-            "breakdown": score_result["breakdown"],
-            "last_updated": datetime.utcnow()
-        }
-=======
+
         now = datetime.utcnow()
 
         # Snapshot the CURRENT score before overwriting it (score history)
@@ -100,7 +92,7 @@ async def update_profile(
         update_data["score.total_score"] = score_result["total_score"]
         update_data["score.breakdown"] = score_result["breakdown"]
         update_data["score.last_updated"] = now
->>>>>>> vinya
+
 
     # Generate embedding if bio or resume data changes
     if profile_data.bio is not None or profile_data.resumeData is not None:
