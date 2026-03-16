@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
@@ -428,6 +428,7 @@ function SearcherDashboard() {
     const [generatedBio, setGeneratedBio] = useState('');
     const [isGeneratingBio, setIsGeneratingBio] = useState(false);
     const [bioError, setBioError] = useState('');
+    const [showSuccess, setShowSuccess] = useState(false);
 
     // AI Web Search State
     const [webResults, setWebResults] = useState([]);
@@ -534,7 +535,7 @@ function SearcherDashboard() {
             setApplyingTo(null);
             setGeneratedBio('');
             await loadData();
-            alert('Application submitted successfully!');
+            setShowSuccess(true);
         } catch (err) {
             alert(err.response?.data?.detail || 'Failed to apply');
         }
@@ -1279,6 +1280,120 @@ function SearcherDashboard() {
                     </motion.div>
                 </div>
             )}
+
+            {/* Success Animation Overlay */}
+            <AnimatePresence>
+                {showSuccess && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(58, 75, 65, 0.95)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 2000,
+                            backdropFilter: 'blur(10px)',
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: 'spring', damping: 12, stiffness: 100 }}
+                            style={{
+                                width: '120px',
+                                height: '120px',
+                                borderRadius: '50%',
+                                background: '#E6CFA6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: '24px',
+                                boxShadow: '0 0 50px rgba(230, 207, 166, 0.4)',
+                            }}
+                        >
+                            <Check size={64} color="#3A4B41" strokeWidth={4} />
+                        </motion.div>
+
+                        <motion.h2
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            style={{
+                                fontFamily: "'Bebas Neue', sans-serif",
+                                fontSize: '4rem',
+                                color: '#E6CFA6',
+                                letterSpacing: '2px',
+                                margin: 0,
+                                textAlign: 'center'
+                            }}
+                        >
+                            APPLICATION SUBMITTED!
+                        </motion.h2>
+
+                        <motion.p
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.5 }}
+                            style={{
+                                color: 'rgba(230, 207, 166, 0.8)',
+                                fontSize: '1.25rem',
+                                marginTop: '12px',
+                                textAlign: 'center',
+                                maxWidth: '80%'
+                            }}
+                        >
+                            Your application has been delivered to the hiring team.
+                        </motion.p>
+
+                        <motion.button
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.8 }}
+                            whileHover={{ scale: 1.05, background: '#E6CFA6', color: '#3A4B41' }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setShowSuccess(false)}
+                            style={{
+                                marginTop: '48px',
+                                padding: '14px 40px',
+                                background: 'transparent',
+                                border: '2px solid #E6CFA6',
+                                color: '#E6CFA6',
+                                borderRadius: '100px',
+                                fontSize: '1.1rem',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                letterSpacing: '0.5px'
+                            }}
+                        >
+                            BACK TO DASHBOARD
+                        </motion.button>
+                        
+                        {/* Decorative flying papers */}
+                        <motion.div
+                            initial={{ x: -100, y: 100, opacity: 0 }}
+                            animate={{ x: 500, y: -500, opacity: 1 }}
+                            transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                            style={{ position: 'absolute', left: '20%', bottom: '20%', color: 'rgba(230, 207, 166, 0.2)', pointerEvents: 'none' }}
+                        >
+                            <Send size={40} />
+                        </motion.div>
+                        <motion.div
+                            initial={{ x: 100, y: 100, opacity: 0 }}
+                            animate={{ x: -500, y: -500, opacity: 1 }}
+                            transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 0.5 }}
+                            style={{ position: 'absolute', right: '25%', bottom: '15%', color: 'rgba(230, 207, 166, 0.15)', pointerEvents: 'none' }}
+                        >
+                            <Send size={32} />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <style>{`
                 @keyframes spin {
