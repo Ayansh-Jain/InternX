@@ -401,11 +401,19 @@ async def get_job_applicants(
     result = []
     for app in applications:
         applicant = await users_collection.find_one({"_id": ObjectId(app["applicant_id"])})
+        applicant_profile = applicant.get("profile", {}) if applicant else {}
         result.append({
             "id": str(app["_id"]),
             "applicant_id": app["applicant_id"],
-            "applicant_name": applicant.get("profile", {}).get("fullName") if applicant else None,
+            "applicant_name": applicant_profile.get("fullName"),
             "applicant_email": applicant.get("email") if applicant else None,
+            "applicant_bio": applicant_profile.get("bio", ""),
+            "applicant_phone": applicant_profile.get("phone", ""),
+            "applicant_location": applicant_profile.get("location", ""),
+            "applicant_linkedin": applicant_profile.get("linkedIn", ""),
+            "applicant_github": applicant_profile.get("github", ""),
+            "resume_snapshot": app.get("resume_snapshot") or applicant_profile.get("resumeData"),
+            "cover_letter": app.get("cover_letter", ""),
             "status": app["status"],
             "match_percentage": app.get("match_percentage", 0),
             "created_at": app["created_at"]
