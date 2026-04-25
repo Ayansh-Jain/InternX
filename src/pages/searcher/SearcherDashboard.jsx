@@ -11,7 +11,7 @@ import {
     Check, ArrowRight, Wand2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, applicationsAPI, profileAPI, searchAPI } from '../../services/api';
+import { jobsAPI, applicationsAPI, profileAPI, searchAPI, recommendationsAPI } from '../../services/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 const styles = {
@@ -410,8 +410,10 @@ function SearcherDashboard() {
     const [activeTab, setActiveTab] = useState('browse');
     const [loading, setLoading] = useState(true);
     const [jobs, setJobs] = useState([]);
+    const [recommendedJobs, setRecommendedJobs] = useState([]);
     const [applications, setApplications] = useState([]);
     const [savedJobs, setSavedJobs] = useState([]);
+    const [likedJobs, setLikedJobs] = useState(new Set());
     const [score, setScore] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState({
@@ -473,11 +475,52 @@ function SearcherDashboard() {
             setJobs(jobsRes.data.jobs);
             setApplications(appsRes.data.applications);
             setScore(scoreRes.data);
+
+            if (activeTab === 'for-you') {
+                 const recsRes = await recommendationsAPI.getFeed({ limit: 20 });
+                 setRecommendedJobs(recsRes.data.jobs || []);
+            }
         } catch (err) {
             console.error('Failed to load data:', err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleInteraction = async (jobId, action) => {
+        try {
+            await recommendationsAPI.interact({
+                user_id: user.id || user._id, 
+                job_id: jobId,
+                action: action
+            });
+            // If they liked or applied, refresh the 'for-you' feed in the background to show new recs
+            if (action === 'like' || action === 'apply') {
+                recommendationsAPI.getFeed({ limit: 20 }).then(res => setRecommendedJobs(res.data.jobs || []));
+            }
+        } catch (err) {
+            console.error(`Failed to log ${action} interaction:`, err);
+        }
+    };
+
+    const handleJobClick = (jobId) => {
+        handleInteraction(jobId, 'click');
+    };
+
+    const toggleLike = (e, jobId) => {
+        e.stopPropagation(); // prevent triggering job click
+        setLikedJobs(prev => {
+            const next = new Set(prev);
+            if (next.has(jobId)) {
+                next.delete(jobId);
+                // Depending on requirements, we might not send an API call for 'unlike', 
+                // but we definitely want to log 'like'.
+            } else {
+                next.add(jobId);
+                handleInteraction(jobId, 'like');
+            }
+            return next;
+        });
     };
 
     const handleFilterChange = (key, value) => {
@@ -532,6 +575,10 @@ function SearcherDashboard() {
                 // we send it here so it can be added to their system later, or attached to their profile.
                 bio: generatedBio || undefined
             });
+            
+            // Log the apply interaction
+            handleInteraction(jobId, 'apply');
+
             setApplyingTo(null);
             setGeneratedBio('');
             await loadData();
@@ -653,6 +700,12 @@ function SearcherDashboard() {
                         {/* Tabs */}
                         <div style={styles.tabs}>
                             <button
+                                style={{ ...styles.tab, ...(activeTab === 'for-you' ? styles.tabActive : {}) }}
+                                onClick={() => setActiveTab('for-you')}
+                            >
+                                <Award size={16} /> For You
+                            </button>
+                            <button
                                 style={{ ...styles.tab, ...(activeTab === 'browse' ? styles.tabActive : {}) }}
                                 onClick={() => setActiveTab('browse')}
                             >
@@ -665,6 +718,123 @@ function SearcherDashboard() {
                                 <Send size={16} /> My Applications ({applications.length})
                             </button>
                         </div>
+
+                        {activeTab === 'for-you' && (
+                            <>
+                                {loading ? (
+                                    <div style={styles.loading}>
+                                        <div style={styles.spinner} />
+                                    </div>
+                                ) : recommendedJobs.length === 0 ? (
+                                    <div style={styles.emptyState}>
+                                        <TrendingUp size={40} color="#9CA3AF" />
+                                        <h3 style={{ marginTop: '16px', color: '#374151' }}>No Recommendations Yet</h3>
+                                        <p>Start interacting with jobs (view, click, like, apply) to build your customized feed!</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div style={{ marginBottom: '16px', fontSize: '14px', color: '#6B7280' }}>
+                                            Personalized recommendations based on your profile and activity.
+                                        </div>
+                                        {recommendedJobs.map(job => {
+                                            const matchColors = getMatchColor(job.match_percentage || 0);
+                                            const applied = isApplied(job.id);
+                                            const isLiked = likedJobs.has(job.id);
+                                            return (
+                                                <motion.div
+                                                    key={job.id}
+                                                    style={styles.jobCard}
+                                                    whileHover={{ borderColor: '#3A4B41', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+                                                    onClick={() => handleJobClick(job.id)}
+                                                    onViewportEnter={() => handleInteraction(job.id, 'view')}
+                                                >
+                                                    <div style={styles.jobHeader}>
+                                                        <div>
+                                                            <h3 style={styles.jobTitle}>{job.title}</h3>
+                                                            <div style={styles.jobCompany}>
+                                                                <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                                {job.provider_company || 'Company'}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {job.match_percentage !== null && (
+                                                                <span style={{
+                                                                    ...styles.matchBadge,
+                                                                    background: matchColors.bg,
+                                                                    color: matchColors.color
+                                                                }}>
+                                                                    <Target size={14} style={{ marginRight: '4px' }} />
+                                                                    {job.match_percentage}% Match
+                                                                </span>
+                                                            )}
+                                                            <button 
+                                                                onClick={(e) => toggleLike(e, job.id)}
+                                                                style={{
+                                                                    background: 'none', border: 'none', cursor: 'pointer',
+                                                                    color: isLiked ? '#E11D48' : '#9CA3AF',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    padding: '4px'
+                                                                }}
+                                                            >
+                                                                <svg width="20" height="20" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={styles.jobMeta}>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <MapPin size={14} /> {job.location || 'Remote'}
+                                                        </span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Clock size={14} /> {job.employment_type}
+                                                        </span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Briefcase size={14} /> {job.required_experience}
+                                                        </span>
+                                                        {job.salary_range && (
+                                                            <span style={styles.jobMetaItem}>
+                                                                <DollarSign size={14} />
+                                                                ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {job.required_skills?.length > 0 && (
+                                                        <div style={styles.skillTags}>
+                                                            {job.required_skills.slice(0, 5).map((skill, i) => (
+                                                                <span key={i} style={styles.skillTag}>{skill}</span>
+                                                            ))}
+                                                            {job.required_skills.length > 5 && (
+                                                                <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    <div style={styles.jobActions}>
+                                                        {applied ? (
+                                                            <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }} onClick={(e) => e.stopPropagation()}>
+                                                                <CheckCircle size={16} /> Applied
+                                                            </button>
+                                                        ) : (
+                                                            <motion.button
+                                                                style={{ ...styles.actionBtn, ...styles.primaryBtn }}
+                                                                onClick={(e) => { e.stopPropagation(); setApplyingTo(job); }}
+                                                                whileHover={{ scale: 1.02 }}
+                                                                whileTap={{ scale: 0.98 }}
+                                                            >
+                                                                <Send size={16} /> Apply Now
+                                                            </motion.button>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </>
+                                )}
+                            </>
+                        )}
 
                         {activeTab === 'browse' && (
                             <>
@@ -763,83 +933,101 @@ function SearcherDashboard() {
                                         </button>
                                     </div>
                                 ) : (
-                                    jobs.map(job => {
-                                        const matchColors = getMatchColor(job.match_percentage || 0);
-                                        const applied = isApplied(job.id);
-                                        return (
-                                            <motion.div
-                                                key={job.id}
-                                                style={styles.jobCard}
-                                                whileHover={{ borderColor: '#3A4B41' }}
-                                            >
-                                                <div style={styles.jobHeader}>
-                                                    <div>
-                                                        <h3 style={styles.jobTitle}>{job.title}</h3>
-                                                        <div style={styles.jobCompany}>
-                                                            <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                                            {job.provider_company || 'Company'}
+                                        jobs.map(job => {
+                                            const matchColors = getMatchColor(job.match_percentage || 0);
+                                            const applied = isApplied(job.id);
+                                            const isLiked = likedJobs.has(job.id);
+                                            return (
+                                                <motion.div
+                                                    key={job.id}
+                                                    style={styles.jobCard}
+                                                    whileHover={{ borderColor: '#3A4B41' }}
+                                                    onClick={() => handleJobClick(job.id)}
+                                                    onViewportEnter={() => handleInteraction(job.id, 'view')}
+                                                >
+                                                    <div style={styles.jobHeader}>
+                                                        <div>
+                                                            <h3 style={styles.jobTitle}>{job.title}</h3>
+                                                            <div style={styles.jobCompany}>
+                                                                <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                                {job.provider_company || 'Company'}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {job.match_percentage !== null && (
+                                                                <span style={{
+                                                                    ...styles.matchBadge,
+                                                                    background: matchColors.bg,
+                                                                    color: matchColors.color
+                                                                }}>
+                                                                    <Target size={14} style={{ marginRight: '4px' }} />
+                                                                    {job.match_percentage}% Match
+                                                                </span>
+                                                            )}
+                                                            <button 
+                                                                onClick={(e) => toggleLike(e, job.id)}
+                                                                style={{
+                                                                    background: 'none', border: 'none', cursor: 'pointer',
+                                                                    color: isLiked ? '#E11D48' : '#9CA3AF',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    padding: '4px'
+                                                                }}
+                                                            >
+                                                                <svg width="20" height="20" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                                </svg>
+                                                            </button>
                                                         </div>
                                                     </div>
-                                                    {job.match_percentage !== null && (
-                                                        <span style={{
-                                                            ...styles.matchBadge,
-                                                            background: matchColors.bg,
-                                                            color: matchColors.color
-                                                        }}>
-                                                            <Target size={14} style={{ marginRight: '4px' }} />
-                                                            {job.match_percentage}% Match
-                                                        </span>
-                                                    )}
-                                                </div>
 
-                                                <div style={styles.jobMeta}>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <MapPin size={14} /> {job.location || 'Remote'}
-                                                    </span>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <Clock size={14} /> {job.employment_type}
-                                                    </span>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <Briefcase size={14} /> {job.required_experience}
-                                                    </span>
-                                                    {job.salary_range && (
+                                                    <div style={styles.jobMeta}>
                                                         <span style={styles.jobMetaItem}>
-                                                            <DollarSign size={14} />
-                                                            ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
+                                                            <MapPin size={14} /> {job.location || 'Remote'}
                                                         </span>
-                                                    )}
-                                                </div>
-
-                                                {job.required_skills?.length > 0 && (
-                                                    <div style={styles.skillTags}>
-                                                        {job.required_skills.slice(0, 5).map((skill, i) => (
-                                                            <span key={i} style={styles.skillTag}>{skill}</span>
-                                                        ))}
-                                                        {job.required_skills.length > 5 && (
-                                                            <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Clock size={14} /> {job.employment_type}
+                                                        </span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Briefcase size={14} /> {job.required_experience}
+                                                        </span>
+                                                        {job.salary_range && (
+                                                            <span style={styles.jobMetaItem}>
+                                                                <DollarSign size={14} />
+                                                                ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
+                                                            </span>
                                                         )}
                                                     </div>
-                                                )}
 
-                                                <div style={styles.jobActions}>
-                                                    {applied ? (
-                                                        <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }}>
-                                                            <CheckCircle size={16} /> Applied
-                                                        </button>
-                                                    ) : (
-                                                        <motion.button
-                                                            style={{ ...styles.actionBtn, ...styles.primaryBtn }}
-                                                            onClick={() => setApplyingTo(job)}
-                                                            whileHover={{ scale: 1.02 }}
-                                                            whileTap={{ scale: 0.98 }}
-                                                        >
-                                                            <Send size={16} /> Apply Now
-                                                        </motion.button>
+                                                    {job.required_skills?.length > 0 && (
+                                                        <div style={styles.skillTags}>
+                                                            {job.required_skills.slice(0, 5).map((skill, i) => (
+                                                                <span key={i} style={styles.skillTag}>{skill}</span>
+                                                            ))}
+                                                            {job.required_skills.length > 5 && (
+                                                                <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
+                                                            )}
+                                                        </div>
                                                     )}
-                                                </div>
-                                            </motion.div>
-                                        );
-                                    })
+
+                                                    <div style={styles.jobActions}>
+                                                        {applied ? (
+                                                            <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }} onClick={(e) => e.stopPropagation()}>
+                                                                <CheckCircle size={16} /> Applied
+                                                            </button>
+                                                        ) : (
+                                                            <motion.button
+                                                                style={{ ...styles.actionBtn, ...styles.primaryBtn }}
+                                                                onClick={(e) => { e.stopPropagation(); setApplyingTo(job); }}
+                                                                whileHover={{ scale: 1.02 }}
+                                                                whileTap={{ scale: 0.98 }}
+                                                            >
+                                                                <Send size={16} /> Apply Now
+                                                            </motion.button>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })
                                 )}
 
                                 {/* ─── AI Web Search Results ─── */}
