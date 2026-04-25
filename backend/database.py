@@ -59,6 +59,7 @@ JOBS_COLLECTION = "jobs"
 APPLICATIONS_COLLECTION = "applications"
 SAVED_JOBS_COLLECTION = "saved_jobs"
 ADMIN_LOGS_COLLECTION = "admin_logs"
+INTERACTIONS_COLLECTION = "interactions"
 
 
 async def get_users_collection():
@@ -79,3 +80,7 @@ async def get_saved_jobs_collection():
 
 async def get_admin_logs_collection():
     return Database.get_collection(ADMIN_LOGS_COLLECTION)
+
+
+async def get_interactions_collection():
+    return Database.get_collection(INTERACTIONS_COLLECTION)

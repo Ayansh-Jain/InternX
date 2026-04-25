@@ -124,4 +124,10 @@ export const searchAPI = {
     external: (params) => api.get('/search/external', { params }),
 };
 
+// Recommendations API
+export const recommendationsAPI = {
+    getFeed: (params) => api.get('/recommendations/feed', { params }),
+    interact: (data) => api.post('/recommendations/interact', data),
+};
+
 export default api;

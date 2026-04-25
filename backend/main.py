@@ -18,6 +18,7 @@ from routes.jobs import router as jobs_router
 from routes.applications import router as applications_router
 from routes.profile import router as profile_router
 from routes.search import router as search_router
+from routes.recommendations import router as recommendations_router
 
 # ── Background scheduler ──────────────────────────────────────────────────────
 scheduler = AsyncIOScheduler()
@@ -100,6 +101,7 @@ app.include_router(jobs_router, prefix="/api")
 app.include_router(applications_router, prefix="/api")
 app.include_router(resume_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
+app.include_router(recommendations_router, prefix="/api")
 
 
 @app.get("/")
