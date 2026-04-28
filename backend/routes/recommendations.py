@@ -12,6 +12,7 @@ from models.interaction import InteractionCreate
 from auth.dependencies import require_job_searcher
 from database import Database, JOBS_COLLECTION, USERS_COLLECTION, INTERACTIONS_COLLECTION, APPLICATIONS_COLLECTION
 from services.recommendation_engine import RecommendationEngine, RecommendationCache
+from services.linucb_bandit import get_bandit, INTERACTION_REWARDS
 from routes.jobs import job_to_response
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
@@ -74,6 +75,18 @@ async def log_interaction(
         {"_id": current_user["_id"]},
         {"$set": {"preference_vector": updated_vector}}
     )
+
+    # 5b. Online LinUCB update ────────────────────────────────────────
+    # Context = concat of the UPDATED user preference vector + job vector.
+    # This means the bandit immediately sees who the user is becoming.
+    import numpy as np
+    bandit = get_bandit()
+    reward = INTERACTION_REWARDS.get(interaction.action.value, 0.2)
+    context = np.concatenate([
+        np.array(updated_vector, dtype=np.float64),
+        np.array(job_vector, dtype=np.float64),
+    ])
+    bandit.update(interaction.job_id, context, reward)
 
     # 6. Invalidate cache for this user
     cache.invalidate(f"recs_{interaction.user_id}")
