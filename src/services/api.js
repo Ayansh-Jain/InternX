@@ -124,6 +124,15 @@ export const searchAPI = {
     external: (params) => api.get('/search/external', { params }),
 };
 
+// External Job Tracker API (save / mark-applied for web-search results)
+export const externalJobsAPI = {
+    save:        (job) => api.post('/external-jobs/save', job),
+    unsave:      (extId) => api.delete(`/external-jobs/save/${encodeURIComponent(extId)}`),
+    markApplied: (job) => api.post('/external-jobs/applied', job),
+    unmarkApplied: (extId) => api.delete(`/external-jobs/applied/${encodeURIComponent(extId)}`),
+    list:        (filterBy) => api.get('/external-jobs/', { params: { filter_by: filterBy } }),
+};
+
 // Recommendations API
 export const recommendationsAPI = {
     getFeed: (params) => api.get('/recommendations/feed', { params }),

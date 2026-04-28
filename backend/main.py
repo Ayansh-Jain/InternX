@@ -20,6 +20,7 @@ from routes.applications import router as applications_router
 from routes.profile import router as profile_router
 from routes.search import router as search_router
 from routes.recommendations import router as recommendations_router
+from routes.external_jobs import router as external_jobs_router
 from services.linucb_bandit import get_bandit
 from services.applicant_ranker import get_ranker
 
@@ -135,6 +136,7 @@ app.include_router(applications_router, prefix="/api")
 app.include_router(resume_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
 app.include_router(recommendations_router, prefix="/api")
+app.include_router(external_jobs_router, prefix="/api")
 
 
 @app.get("/")

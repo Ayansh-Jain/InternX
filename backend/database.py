@@ -60,6 +60,7 @@ APPLICATIONS_COLLECTION = "applications"
 SAVED_JOBS_COLLECTION = "saved_jobs"
 ADMIN_LOGS_COLLECTION = "admin_logs"
 INTERACTIONS_COLLECTION = "interactions"
+EXTERNAL_JOBS_COLLECTION = "external_jobs"  # Saved / applied external (web search) jobs
 
 
 async def get_users_collection():

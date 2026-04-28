@@ -11,7 +11,7 @@ import {
     Check, ArrowRight, Wand2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, applicationsAPI, profileAPI, searchAPI, recommendationsAPI } from '../../services/api';
+import { jobsAPI, applicationsAPI, profileAPI, searchAPI, recommendationsAPI, externalJobsAPI } from '../../services/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 const styles = {
@@ -438,9 +438,16 @@ function SearcherDashboard() {
     const [webError, setWebError] = useState('');
     const [showWebResults, setShowWebResults] = useState(false);
     const [webQuery, setWebQuery] = useState('');
+    const [webSavedSet, setWebSavedSet] = useState(new Set());
+    const [webAppliedSet, setWebAppliedSet] = useState(new Set());
+    const [webActionLoading, setWebActionLoading] = useState(new Set());
+    // Saved External tab
+    const [externalJobs, setExternalJobs] = useState([]);
+    const [externalLoading, setExternalLoading] = useState(false);
 
     useEffect(() => {
         loadData();
+        if (activeTab === 'saved-external') loadExternalJobs();
     }, [activeTab]);
 
     // Debounce search
@@ -485,6 +492,16 @@ function SearcherDashboard() {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Load saved/applied external jobs
+    const loadExternalJobs = async () => {
+        setExternalLoading(true);
+        try {
+            const res = await externalJobsAPI.list('all');
+            setExternalJobs(res.data.jobs || []);
+        } catch (e) { console.error('Failed to load external jobs', e); }
+        finally { setExternalLoading(false); }
     };
 
     const handleInteraction = async (jobId, action) => {
@@ -549,6 +566,9 @@ function SearcherDashboard() {
         setShowWebResults(true);
         setWebQuery(query);
         setWebResults([]);
+        // Reset action state for new search
+        setWebSavedSet(new Set());
+        setWebAppliedSet(new Set());
         try {
             const params = { q: query };
             if (filters.location) params.location = filters.location;
@@ -560,6 +580,46 @@ function SearcherDashboard() {
         } finally {
             setWebLoading(false);
         }
+    };
+
+    const setWebActionLoad = (id, on) => setWebActionLoading(prev => {
+        const n = new Set(prev); on ? n.add(id) : n.delete(id); return n;
+    });
+
+    const toExtPayload = (r) => ({
+        ext_id: r.id || `${r.source}-${r.title}`,
+        title: r.title, company: r.company, location: r.location,
+        job_type: r.type, salary: r.salary, source: r.source,
+        apply_url: r.apply_url, description_snippet: r.description_snippet,
+        is_verified: r.is_verified || false,
+    });
+
+    const handleWebSave = async (r) => {
+        const id = r.id;
+        setWebActionLoad(id, true);
+        try {
+            if (webSavedSet.has(id)) {
+                await externalJobsAPI.unsave(id);
+                setWebSavedSet(prev => { const n = new Set(prev); n.delete(id); return n; });
+            } else {
+                await externalJobsAPI.save(toExtPayload(r));
+                setWebSavedSet(prev => new Set([...prev, id]));
+            }
+        } catch (e) { console.error(e); } finally { setWebActionLoad(id, false); }
+    };
+
+    const handleWebMarkApplied = async (r) => {
+        const id = r.id;
+        setWebActionLoad(id, true);
+        try {
+            if (webAppliedSet.has(id)) {
+                await externalJobsAPI.unmarkApplied(id);
+                setWebAppliedSet(prev => { const n = new Set(prev); n.delete(id); return n; });
+            } else {
+                await externalJobsAPI.markApplied(toExtPayload(r));
+                setWebAppliedSet(prev => new Set([...prev, id]));
+            }
+        } catch (e) { console.error(e); } finally { setWebActionLoad(id, false); }
     };
 
     const handleLogout = async () => {
@@ -716,6 +776,12 @@ function SearcherDashboard() {
                                 onClick={() => setActiveTab('applications')}
                             >
                                 <Send size={16} /> My Applications ({applications.length})
+                            </button>
+                            <button
+                                style={{ ...styles.tab, ...(activeTab === 'saved-external' ? styles.tabActive : {}) }}
+                                onClick={() => setActiveTab('saved-external')}
+                            >
+                                🔖 Saved Web Jobs
                             </button>
                         </div>
 
@@ -1131,6 +1197,30 @@ function SearcherDashboard() {
                                                     >
                                                         <ChevronRight size={16} /> Apply on {result.source}
                                                     </a>
+                                                    {/* Save button */}
+                                                    <button
+                                                        onClick={() => handleWebSave(result)}
+                                                        disabled={webActionLoading.has(result.id)}
+                                                        style={{
+                                                            ...styles.actionBtn,
+                                                            background: webSavedSet.has(result.id) ? '#FEF3C7' : '#F3F4F6',
+                                                            color: webSavedSet.has(result.id) ? '#D97706' : '#374151',
+                                                        }}
+                                                    >
+                                                        {webSavedSet.has(result.id) ? '🔖 Saved' : '🔖 Save'}
+                                                    </button>
+                                                    {/* Mark Applied */}
+                                                    <button
+                                                        onClick={() => handleWebMarkApplied(result)}
+                                                        disabled={webActionLoading.has(result.id)}
+                                                        style={{
+                                                            ...styles.actionBtn,
+                                                            background: webAppliedSet.has(result.id) ? '#D1FAE5' : '#F3F4F6',
+                                                            color: webAppliedSet.has(result.id) ? '#059669' : '#374151',
+                                                        }}
+                                                    >
+                                                        {webAppliedSet.has(result.id) ? '✅ Applied' : '✅ Mark Applied'}
+                                                    </button>
                                                 </div>
                                             </motion.div>
                                         ))}
@@ -1181,6 +1271,61 @@ function SearcherDashboard() {
                                             </div>
                                         );
                                     })
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'saved-external' && (
+                            <>
+                                <div style={{ marginBottom: '16px', fontSize: '14px', color: '#6B7280' }}>
+                                    Jobs you saved or marked as applied from external platforms.
+                                </div>
+                                {externalLoading ? (
+                                    <div style={styles.loading}><div style={styles.spinner} /></div>
+                                ) : externalJobs.length === 0 ? (
+                                    <div style={styles.emptyState}>
+                                        <span style={{ fontSize: '40px' }}>🔖</span>
+                                        <h3 style={{ marginTop: '16px', color: '#374151' }}>No saved web jobs yet</h3>
+                                        <p>Use the Save button on web search results to bookmark jobs for later.</p>
+                                    </div>
+                                ) : (
+                                    externalJobs.map(job => (
+                                        <div key={job.id} style={{ ...styles.applicationCard, flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
+                                                <div>
+                                                    <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#3A4B41', marginBottom: '2px' }}>{job.title}</h4>
+                                                    <p style={{ fontSize: '13px', color: '#6B7280' }}>
+                                                        {job.company} · {job.source} {job.location && `· ${job.location}`}
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    {job.saved && (
+                                                        <span style={{ ...styles.statusBadge, background: '#FEF3C7', color: '#D97706' }}>
+                                                            🔖 Saved
+                                                        </span>
+                                                    )}
+                                                    {job.applied && (
+                                                        <span style={{ ...styles.statusBadge, background: '#D1FAE5', color: '#059669' }}>
+                                                            ✅ Applied
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <a
+                                                    href={job.apply_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{ ...styles.actionBtn, ...styles.primaryBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                                >
+                                                    <ChevronRight size={14} /> Open on {job.source}
+                                                </a>
+                                                {job.salary && (
+                                                    <span style={{ ...styles.actionBtn, background: '#F3F4F6', color: '#374151' }}>💰 {job.salary}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
                                 )}
                             </>
                         )}

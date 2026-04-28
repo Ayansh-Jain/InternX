@@ -24,20 +24,30 @@ TRUSTED_DOMAINS = [
     "linkedin.com", "indeed.com", "internshala.com", "devfolio.co",
     "unstop.com", "wellfound.com", "glassdoor.com", "naukri.com",
     "remotive.com", "workatastartup.com", "lever.co", "greenhouse.io",
-    "workday.com", "jobs.google.com", "microsoft.com", "amazon.jobs"
+    "workday.com", "jobs.google.com", "microsoft.com", "amazon.jobs",
+    # Government / PSU portals
+    "ncs.gov.in", "upsc.gov.in", "ssc.nic.in", "ibps.in",
+    "rrb.gov.in", "sarkariresult.com", "sarkarijob.in", "rojgarresult.com",
+    "mahapariksha.gov.in", "mppsc.nic.in", "tnpsc.gov.in",
 ]
 
 # ── Platform URL builders ─────────────────────────────────────────────────────
 PLATFORMS = [
-
-    {"name": "LinkedIn",    "url": lambda t, c, l: f"https://www.linkedin.com/jobs/search/?keywords={quote_plus(f'{t} {c}')}&location={quote_plus(l or '')}"},
-    {"name": "Indeed",      "url": lambda t, c, l: f"https://www.indeed.com/jobs?q={quote_plus(f'{t} {c}')}&l={quote_plus(l or '')}"},
-    {"name": "Internshala", "url": lambda t, c, l: f"https://internshala.com/internships/work-from-home-internships/?search_query={quote_plus(f'{t} {c}')}"},
-    {"name": "Naukri",      "url": lambda t, c, l: f"https://www.naukri.com/{quote_plus(f'{t}-{c}').replace('+','-').lower()}-jobs"},
-    {"name": "Unstop",      "url": lambda t, c, l: f"https://unstop.com/jobs?search={quote_plus(f'{t} {c}')}"},
-    {"name": "Wellfound",   "url": lambda t, c, l: f"https://wellfound.com/jobs?role={quote_plus(t)}&company={quote_plus(c)}"},
-    {"name": "Glassdoor",   "url": lambda t, c, l: f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={quote_plus(f'{t} {c}')}"},
-    {"name": "Devfolio",    "url": lambda t, c, l: "https://devfolio.co/hackathons"},
+    {"name": "LinkedIn",        "url": lambda t, c, l: f"https://www.linkedin.com/jobs/search/?keywords={quote_plus(f'{t} {c}')}&location={quote_plus(l or '')}"},
+    {"name": "Indeed",          "url": lambda t, c, l: f"https://www.indeed.com/jobs?q={quote_plus(f'{t} {c}')}&l={quote_plus(l or '')}"},
+    {"name": "Internshala",     "url": lambda t, c, l: f"https://internshala.com/internships/work-from-home-internships/?search_query={quote_plus(f'{t} {c}')}"},
+    {"name": "Naukri",          "url": lambda t, c, l: f"https://www.naukri.com/{quote_plus(f'{t}-{c}').replace('+','-').lower()}-jobs"},
+    {"name": "Unstop",          "url": lambda t, c, l: f"https://unstop.com/jobs?search={quote_plus(f'{t} {c}')}"},
+    {"name": "Wellfound",       "url": lambda t, c, l: f"https://wellfound.com/jobs?role={quote_plus(t)}&company={quote_plus(c)}"},
+    {"name": "Glassdoor",       "url": lambda t, c, l: f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={quote_plus(f'{t} {c}')}"},
+    {"name": "Devfolio",        "url": lambda t, c, l: "https://devfolio.co/hackathons"},
+    # Government / Sarkari portals
+    {"name": "NCS Gov",         "url": lambda t, c, l: f"https://www.ncs.gov.in/Pages/SearchJob.aspx?searchText={quote_plus(t)}&location={quote_plus(l or 'India')}"},
+    {"name": "Sarkari Result",  "url": lambda t, c, l: f"https://www.sarkariresult.com/"},
+    {"name": "UPSC",            "url": lambda t, c, l: "https://upsc.gov.in/examinations/active-examinations"},
+    {"name": "SSC",             "url": lambda t, c, l: "https://ssc.nic.in/Portal/Notices"},
+    {"name": "IBPS",            "url": lambda t, c, l: "https://www.ibps.in/"},
+    {"name": "Naukri Gov",      "url": lambda t, c, l: f"https://www.naukri.com/government-jobs?keyword={quote_plus(t)}"},
 ]
 
 # ── Template data pools ───────────────────────────────────────────────────────
@@ -142,6 +152,11 @@ DESCRIPTIONS = {
         "Compete in a 48-hour hackathon with ₹5 lakh prize pool. Theme: AI-powered solutions for Bharat. Open to undergraduate and postgraduate students.",
         "Join India's biggest student innovation challenge. Build MVPs, get mentored by industry leaders, and win internship offers from top startups.",
     ],
+    "government": [
+        "Apply for a prestigious Central / State Government position. Offers job security, pension benefits, and structured career progression. Eligible candidates must meet the educational and age criteria.",
+        "Recruitment open under the Public Sector Undertaking (PSU) category. Candidates will undergo written examination followed by interview. Check official notification for eligibility and last date.",
+        "Sarkari Naukri opportunity under Group A/B cadre. Salary as per 7th Pay Commission. Reservation applicable as per Govt. of India norms. Apply through the official portal.",
+    ],
 }
 
 SALARY_RANGES = {
@@ -151,6 +166,7 @@ SALARY_RANGES = {
     "contract":     ["₹50,000/month", "₹60,000/month", "₹80,000/month", "₹1,00,000/month"],
     "hackathon":    ["Prize: ₹1 Lakh", "Prize: ₹2 Lakh", "Prize: ₹5 Lakh", "No stipend — equity potential"],
     "remote":       ["₹8–12 LPA", "₹12–18 LPA", "₹15–25 LPA", "$2,000–3,000/month"],
+    "government":   ["₹25,000–35,000/month (Level 4)", "₹35,000–50,000/month (Level 6)", "₹47,600–1,51,100/month (Level 8)", "₹56,100–1,77,500/month (Level 10)"],
     "default":      ["₹8–12 LPA", "₹12–18 LPA", "₹15–22 LPA", "Competitive"],
 }
 
@@ -241,6 +257,7 @@ def _generate_smart_listings(
     job_type: Optional[str],
     work_mode: Optional[str],
     count: int = 8,
+    platform_override: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Generate diverse, realistic-looking job listings:
@@ -260,7 +277,7 @@ def _generate_smart_listings(
     companies = _pick_companies(query, job_type, count, seed)
     loc = location or rng.choice(CITIES)
 
-    platforms_shuffled = PLATFORMS[:]
+    platforms_shuffled = (platform_override if platform_override else PLATFORMS)[:]
     rng.shuffle(platforms_shuffled)
 
 
@@ -340,11 +357,18 @@ async def search_external_jobs(
     results = []
     source_used = "smart_listings"
 
+    # ── Government / bilingual query enrichment ────────────────────────────────
+    is_govt = (job_type or "").lower() == "government"
+    govt_keywords = "Sarkari Naukri Government PSU Public Sector"
+
     # Step 1: Build enriched search query
     search_query = query
+    if is_govt:
+        # Append bilingual government keywords so JSearch returns govt results
+        search_query = f"{search_query} {govt_keywords}"
     if location:
         search_query = f"{search_query} {location}"
-    if job_type:
+    if job_type and not is_govt:
         search_query = f"{search_query} {job_type}"
     if work_mode:
         search_query = f"{search_query} {work_mode}"
@@ -398,9 +422,18 @@ async def search_external_jobs(
     # Step 3: Fall back to smart template listings ONLY if no results were found
     if not results:
         source_used = "smart_listings"
-        # Using generic descriptors instead of specific company names to avoid "fake" data
 
-        results = _generate_smart_listings(query, location, job_type, work_mode)
+        # For government jobs — use the government-specific platforms only
+        if is_govt:
+            govt_platforms = [p for p in PLATFORMS if p["name"] in (
+                "NCS Gov", "Sarkari Result", "UPSC", "SSC", "IBPS", "Naukri Gov"
+            )]
+            results = _generate_smart_listings(
+                query, location, job_type, work_mode,
+                count=6, platform_override=govt_platforms
+            )
+        else:
+            results = _generate_smart_listings(query, location, job_type, work_mode)
 
     return {
         "query": query,

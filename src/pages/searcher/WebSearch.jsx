@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { searchAPI } from '../../services/api';
+import { searchAPI, externalJobsAPI } from '../../services/api';
 
 /* ─── Styles ─── */
 const S = {
@@ -250,19 +250,26 @@ const OPPORTUNITY_TYPES = [
     { value: 'hackathon', label: '🚀 Hackathon' },
     { value: 'contract', label: '📋 Contract / Freelance' },
     { value: 'remote', label: '🌐 Remote Job' },
+    { value: 'government', label: '🏛️ Government / Sarkari Job' },
 ];
 
 const WORK_MODES = ['Any', 'Onsite', 'Remote', 'Hybrid'];
 
 const SOURCE_COLORS = {
-    LinkedIn: { bg: '#DBEAFE', color: '#1D4ED8' },
-    Indeed: { bg: '#FEF9C3', color: '#92400E' },
-    Internshala: { bg: '#D1FAE5', color: '#065F46' },
-    Unstop: { bg: '#EDE9FE', color: '#5B21B6' },
-    Naukri: { bg: '#FEE2E2', color: '#9B1C1C' },
-    Wellfound: { bg: '#FCE7F3', color: '#9D174D' },
-    Glassdoor: { bg: '#ECFDF5', color: '#064E3B' },
-    Devfolio: { bg: '#F3E8FF', color: '#6B21A8' },
+    LinkedIn:       { bg: '#DBEAFE', color: '#1D4ED8' },
+    Indeed:         { bg: '#FEF9C3', color: '#92400E' },
+    Internshala:    { bg: '#D1FAE5', color: '#065F46' },
+    Unstop:         { bg: '#EDE9FE', color: '#5B21B6' },
+    Naukri:         { bg: '#FEE2E2', color: '#9B1C1C' },
+    Wellfound:      { bg: '#FCE7F3', color: '#9D174D' },
+    Glassdoor:      { bg: '#ECFDF5', color: '#064E3B' },
+    Devfolio:       { bg: '#F3E8FF', color: '#6B21A8' },
+    'NCS Gov':      { bg: '#FFF7ED', color: '#C2410C' },
+    'Sarkari Result': { bg: '#ECFDF5', color: '#065F46' },
+    UPSC:           { bg: '#EFF6FF', color: '#1E40AF' },
+    SSC:            { bg: '#F5F3FF', color: '#5B21B6' },
+    IBPS:           { bg: '#FFF1F2', color: '#BE123C' },
+    'Naukri Gov':   { bg: '#FEF2F2', color: '#991B1B' },
 };
 
 function getSourceStyle(source) {
@@ -301,6 +308,10 @@ export default function WebSearch() {
     const [searched, setSearched] = useState(false);
     const [queryUsed, setQueryUsed] = useState('');
     const [sourceUsed, setSourceUsed] = useState('');
+    // Track saved / applied state per result (keyed by ext_id)
+    const [savedSet, setSavedSet] = useState(new Set());
+    const [appliedSet, setAppliedSet] = useState(new Set());
+    const [actionLoading, setActionLoading] = useState(new Set()); // IDs currently loading
 
     const handleChange = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
@@ -339,6 +350,56 @@ export default function WebSearch() {
     };
 
     const handleLogout = async () => { await logout(); navigate('/signin'); };
+
+    // Build a compact payload for the backend from a result card
+    const toPayload = (r) => ({
+        ext_id: r.id || `${r.source}-${r.title}`,
+        title: r.title,
+        company: r.company,
+        location: r.location,
+        job_type: r.type,
+        salary: r.salary,
+        source: r.source,
+        apply_url: r.apply_url,
+        description_snippet: r.description_snippet,
+        is_verified: r.is_verified || false,
+    });
+
+    const setLoading1 = (id, on) => setActionLoading(prev => {
+        const next = new Set(prev);
+        on ? next.add(id) : next.delete(id);
+        return next;
+    });
+
+    const handleSave = async (r) => {
+        const id = r.id;
+        setLoading1(id, true);
+        try {
+            if (savedSet.has(id)) {
+                await externalJobsAPI.unsave(id);
+                setSavedSet(prev => { const n = new Set(prev); n.delete(id); return n; });
+            } else {
+                await externalJobsAPI.save(toPayload(r));
+                setSavedSet(prev => new Set([...prev, id]));
+            }
+        } catch (e) { console.error('Save error', e); }
+        finally { setLoading1(id, false); }
+    };
+
+    const handleMarkApplied = async (r) => {
+        const id = r.id;
+        setLoading1(id, true);
+        try {
+            if (appliedSet.has(id)) {
+                await externalJobsAPI.unmarkApplied(id);
+                setAppliedSet(prev => { const n = new Set(prev); n.delete(id); return n; });
+            } else {
+                await externalJobsAPI.markApplied(toPayload(r));
+                setAppliedSet(prev => new Set([...prev, id]));
+            }
+        } catch (e) { console.error('Applied error', e); }
+        finally { setLoading1(id, false); }
+    };
 
     return (
         <div style={S.page}>
@@ -659,10 +720,44 @@ export default function WebSearch() {
                                                         <ExternalLink size={14} />
                                                         Apply on {r.source}
                                                     </a>
+
+                                                    {/* Save button */}
+                                                    <button
+                                                        onClick={() => handleSave(r)}
+                                                        disabled={actionLoading.has(r.id)}
+                                                        title={savedSet.has(r.id) ? 'Remove from saved' : 'Save for later'}
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                                            padding: '10px 16px', borderRadius: '8px', border: 'none',
+                                                            cursor: actionLoading.has(r.id) ? 'wait' : 'pointer',
+                                                            fontSize: '13px', fontWeight: '600', transition: 'all 0.2s',
+                                                            background: savedSet.has(r.id) ? '#FEF3C7' : '#F3F4F6',
+                                                            color: savedSet.has(r.id) ? '#D97706' : '#374151',
+                                                        }}
+                                                    >
+                                                        {savedSet.has(r.id) ? '🔖 Saved' : '🔖 Save'}
+                                                    </button>
+
+                                                    {/* Mark Applied button */}
+                                                    <button
+                                                        onClick={() => handleMarkApplied(r)}
+                                                        disabled={actionLoading.has(r.id)}
+                                                        title={appliedSet.has(r.id) ? 'Un-mark as applied' : 'Mark as applied (self-reported)'}
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                                            padding: '10px 16px', borderRadius: '8px', border: 'none',
+                                                            cursor: actionLoading.has(r.id) ? 'wait' : 'pointer',
+                                                            fontSize: '13px', fontWeight: '600', transition: 'all 0.2s',
+                                                            background: appliedSet.has(r.id) ? '#D1FAE5' : '#F3F4F6',
+                                                            color: appliedSet.has(r.id) ? '#059669' : '#374151',
+                                                        }}
+                                                    >
+                                                        {appliedSet.has(r.id) ? '✅ Applied' : '✅ Mark Applied'}
+                                                    </button>
+
                                                     {r.ai_generated && (
                                                         <span style={{
                                                             fontSize: '11px', color: '#6366F1',
-
                                                             background: '#F0F4FF', padding: '5px 12px',
                                                             borderRadius: '20px', fontWeight: '700',
                                                             display: 'flex', alignItems: 'center', gap: '5px',
@@ -671,7 +766,6 @@ export default function WebSearch() {
                                                             animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                                                         }}>
                                                             <Sparkles size={11} /> Smart Match
-
                                                         </span>
                                                     )}
                                                 </div>
