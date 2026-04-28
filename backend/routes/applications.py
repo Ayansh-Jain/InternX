@@ -145,15 +145,20 @@ async def apply_to_job(
         resume_features = []
 
     now = datetime.utcnow()
+    
+    # Use customized resume if provided, otherwise default to profile resume
+    resume_snapshot = application_data.customized_resume if application_data.customized_resume else current_user.get("profile", {}).get("resumeData")
+
     application_doc = {
         "job_id": application_data.job_id,
         "applicant_id": str(current_user["_id"]),
         "provider_id": job["provider_id"],
         "status": ApplicationStatus.PENDING.value,
         "match_percentage": match_pct,
-        "resume_snapshot": current_user.get("profile", {}).get("resumeData"),
+        "resume_snapshot": resume_snapshot,
         "resume_features": resume_features,   # 8-dim vector for RL update
         "cover_letter": cover_letter,
+        "application_bio": application_data.application_bio,
         "created_at": now,
         "updated_at": now
     }
@@ -180,6 +185,8 @@ async def apply_to_job(
         status=ApplicationStatus.PENDING,
         match_percentage=match_pct,
         cover_letter=cover_letter,
+        resume_snapshot=resume_snapshot,
+        application_bio=application_data.application_bio,
         created_at=now
     )
 
@@ -243,6 +250,8 @@ async def list_my_applications(
             status=ApplicationStatus(app["status"]),
             match_percentage=app.get("match_percentage", 0),
             cover_letter=app.get("cover_letter"),
+            resume_snapshot=app.get("resume_snapshot"),
+            application_bio=app.get("application_bio"),
             created_at=app["created_at"]
         ))
 
@@ -293,6 +302,8 @@ async def get_application(
         status=ApplicationStatus(app["status"]),
         match_percentage=app.get("match_percentage", 0),
         cover_letter=app.get("cover_letter"),
+        resume_snapshot=app.get("resume_snapshot"),
+        application_bio=app.get("application_bio"),
         created_at=app["created_at"]
     )
 

@@ -909,7 +909,7 @@ function ProviderDashboard() {
                                                         borderTop: '1px solid #F3F4F6'
                                                     }}>
                                                         {/* Bio Section */}
-                                                        {app.applicant_bio && (
+                                                        {app.application_bio && (
                                                             <div style={{
                                                                 margin: '16px 0',
                                                                 padding: '14px 16px',
@@ -918,10 +918,10 @@ function ProviderDashboard() {
                                                                 borderLeft: '4px solid #3A4B41'
                                                             }}>
                                                                 <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                    <User size={14} /> Applicant Bio
+                                                                    <User size={14} /> AI-Tailored Application Bio
                                                                 </div>
                                                                 <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: '1.6' }}>
-                                                                    {app.applicant_bio}
+                                                                    {app.application_bio}
                                                                 </p>
                                                             </div>
                                                         )}

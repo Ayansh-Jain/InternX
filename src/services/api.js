@@ -139,4 +139,12 @@ export const recommendationsAPI = {
     interact: (data) => api.post('/recommendations/interact', data),
 };
 
+// Resume API
+export const resumeAPI = {
+    customize: (data) => api.post('/customize-resume', data),
+    parse: (fileData) => api.post('/resume/parse-resume', fileData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+};
+
 export default api;

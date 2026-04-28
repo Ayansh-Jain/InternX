@@ -2,8 +2,8 @@ from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Union
 
-from services.scoring import calculate_resume_score
-from services.generator import optimize_resume_content
+from services.scoring import calculate_resume_score, calculate_resume_score_vs_jd
+from services.generator import optimize_resume_content, customize_resume_for_job
 from services.grammar import check_grammar
 from services.parser import parse_resume_pdf
 from services.bio_generator import process_bio_generation
@@ -185,3 +185,61 @@ async def generate_bio_endpoint(data: BioRequest):
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Failed to generate bio: {str(e)}")
+
+class CustomizeRequest(BaseModel):
+    resume_data: Dict[str, Any]
+    job_description: str
+
+@router.post("/customize-resume")
+async def customize_resume(data: CustomizeRequest):
+    """
+    Customize a resume based on a job description using Claude.
+    """
+    try:
+        customized_data = await customize_resume_for_job(data.resume_data, data.job_description)
+        
+        # Merge tailored sections with original data to calculate new scores
+        merged_resume = data.resume_data.copy()
+        if "experience" in customized_data:
+            # Reconstruct responsibilities strings for scoring
+            merged_experience = []
+            for exp in customized_data["experience"]:
+                bullets_text = []
+                for bullet_group in exp.get("bullets", []):
+                    # Combine all text segments into a single string for this bullet
+                    text = "".join([segment.get("text", "") for segment in bullet_group])
+                    bullets_text.append(text)
+                new_exp = exp.copy()
+                new_exp["responsibilities"] = bullets_text
+                merged_experience.append(new_exp)
+            merged_resume["experience"] = merged_experience
+            
+        if "projects" in customized_data:
+            merged_projects = []
+            for proj in customized_data["projects"]:
+                bullets_text = []
+                for bullet_group in proj.get("bullets", []):
+                    text = "".join([segment.get("text", "") for segment in bullet_group])
+                    bullets_text.append(text)
+                new_proj = proj.copy()
+                new_proj["description"] = " ".join(bullets_text)
+                merged_projects.append(new_proj)
+            merged_resume["projects"] = merged_projects
+
+        # Calculate new match score
+        match_info = calculate_resume_score_vs_jd(merged_resume, data.job_description)
+        new_match_score = match_info["match_score"]
+        
+        # Calculate new total ATS score
+        ats_info = calculate_resume_score(merged_resume)
+        new_total_score = ats_info["total_score"]
+
+        return {
+            "success": True, 
+            "data": customized_data,
+            "new_match_score": new_match_score,
+            "new_total_score": new_total_score
+        }
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))

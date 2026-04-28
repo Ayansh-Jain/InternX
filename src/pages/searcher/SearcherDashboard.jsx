@@ -2,16 +2,17 @@
  * Job Searcher Dashboard - For candidates to browse jobs, track applications, and view scores.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
     CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X,
-    Check, ArrowRight, Wand2
+    Check, ArrowRight, Wand2, FileText, Download, Upload
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, applicationsAPI, profileAPI, searchAPI, recommendationsAPI, externalJobsAPI } from '../../services/api';
+import { jobsAPI, applicationsAPI, profileAPI, searchAPI, recommendationsAPI, externalJobsAPI, resumeAPI } from '../../services/api';
+import CustomizedResumePreview from '../../components/CustomizedResumePreview';
 import { useNavigate, Link } from 'react-router-dom';
 
 const styles = {
@@ -334,17 +335,20 @@ const styles = {
         right: 0,
         bottom: 0,
         background: 'rgba(0,0,0,0.5)',
+        zIndex: 200,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 200,
     },
     modalContent: {
         background: 'white',
         borderRadius: '16px',
         padding: '32px',
-        maxWidth: '500px',
+        maxWidth: '600px',
         width: '90%',
+        maxHeight: '88vh',
+        overflowY: 'scroll',
+        position: 'relative',
     },
     filterSidebar: {
         position: 'fixed',
@@ -431,6 +435,29 @@ function SearcherDashboard() {
     const [isGeneratingBio, setIsGeneratingBio] = useState(false);
     const [bioError, setBioError] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
+    
+    const [customizedResume, setCustomizedResume] = useState(null);
+    const [isCustomizingResume, setIsCustomizingResume] = useState(false);
+    const [customizeError, setCustomizeError] = useState('');
+    
+    // Resume Selection State
+    const [resumeSelection, setResumeSelection] = useState('original');
+    const [customResumeFile, setCustomResumeFile] = useState(null);
+    const [isSubmittingApp, setIsSubmittingApp] = useState(false);
+
+    // Reference for the scrollable modal container
+    const modalRef = useRef(null);
+
+    useEffect(() => {
+        if (customizedResume && modalRef.current) {
+            setTimeout(() => {
+                modalRef.current.scrollTo({ 
+                    top: modalRef.current.scrollHeight, 
+                    behavior: 'smooth' 
+                });
+            }, 500);
+        }
+    }, [customizedResume]);
 
     // AI Web Search State
     const [webResults, setWebResults] = useState([]);
@@ -627,25 +654,60 @@ function SearcherDashboard() {
         navigate('/signin');
     };
 
-    const handleApply = async (jobId) => {
+    const handleSubmitApplication = async () => {
+        if (!applyingTo) return;
+        setIsSubmittingApp(true);
         try {
+            let finalCustomizedResume = null;
+            
+            if (resumeSelection === 'tailored') {
+                finalCustomizedResume = customizedResume?.data || null;
+            } else if (resumeSelection === 'custom' && customResumeFile) {
+                const formData = new FormData();
+                formData.append('file', customResumeFile);
+                const parseRes = await resumeAPI.parse(formData);
+                if (parseRes.data.success) {
+                    finalCustomizedResume = parseRes.data.data;
+                } else {
+                    throw new Error("Failed to parse custom resume");
+                }
+            }
+
             await applicationsAPI.apply({ 
-                job_id: jobId,
-                // Even though the backend might not currently save the bio in the Application model,
-                // we send it here so it can be added to their system later, or attached to their profile.
-                bio: generatedBio || undefined
+                job_id: applyingTo._id,
+                customized_resume: finalCustomizedResume,
+                application_bio: generatedBio || undefined
             });
             
-            // Log the apply interaction
-            handleInteraction(jobId, 'apply');
-
             setApplyingTo(null);
+            setCustomizedResume(null);
+            setCustomizeError('');
             setGeneratedBio('');
-            await loadData();
+            setResumeSelection('original');
+            setCustomResumeFile(null);
             setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 3000);
+            loadData();
         } catch (err) {
-            alert(err.response?.data?.detail || 'Failed to apply');
+            console.error('Failed to apply:', err);
+            alert(err.response?.data?.detail || err.message || 'Failed to submit application');
+        } finally {
+            setIsSubmittingApp(false);
         }
+    };
+
+    const handleDownloadPDF = async () => {
+        const element = document.getElementById('resume-preview');
+        if (!element) return;
+        const html2pdf = (await import('html2pdf.js')).default;
+        const opt = {
+            margin: [10, 10],
+            filename: 'Tailored_Resume.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
     };
     
     const handleGenerateBio = async () => {
@@ -680,6 +742,38 @@ function SearcherDashboard() {
             setBioError(err.response?.data?.detail || 'Failed to generate AI Bio. Please check your API configuration or try again.');
         } finally {
             setIsGeneratingBio(false);
+        }
+    };
+
+    const handleGenerateCustomizedResume = async () => {
+        if (!applyingTo) return;
+        setIsCustomizingResume(true);
+        setCustomizeError('');
+        try {
+            const profileRes = await profileAPI.get();
+            const rawResumeData = profileRes.data.resumeData || profileRes.data.profile?.resumeData;
+            
+            if (!rawResumeData) {
+                setCustomizeError("No resume data found. Please complete your profile first.");
+                setIsCustomizingResume(false);
+                return;
+            }
+
+            const response = await resumeAPI.customize({
+                resume_data: rawResumeData,
+                job_description: applyingTo.description || applyingTo.title
+            });
+            setCustomizedResume({
+                data: response.data.data,
+                rawData: rawResumeData,
+                newTotalScore: response.data.new_total_score,
+                newMatchScore: response.data.new_match_score
+            });
+            setResumeSelection('tailored');
+        } catch (err) {
+            setCustomizeError(err.response?.data?.detail || 'Failed to customize resume');
+        } finally {
+            setIsCustomizingResume(false);
         }
     };
 
@@ -1502,7 +1596,17 @@ function SearcherDashboard() {
 
             {/* Apply Modal */}
             {applyingTo && (
-                <div style={styles.modal} onClick={() => setApplyingTo(null)}>
+                <div 
+                    ref={modalRef}
+                    style={styles.modal} 
+                    onClick={() => { 
+                        setApplyingTo(null); 
+                        setCustomizedResume(null); 
+                        setCustomizeError(''); 
+                        setResumeSelection('original');
+                        setCustomResumeFile(null);
+                    }}
+                >
                     <motion.div
                         style={styles.modalContent}
                         initial={{ scale: 0.9, opacity: 0 }}
@@ -1523,12 +1627,24 @@ function SearcherDashboard() {
                             marginBottom: '24px'
                         }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                <span>Your Resume Score:</span>
-                                <strong>{score?.total_score || 0}/100</strong>
+                                <span>{customizedResume ? 'Tailored Resume Score:' : 'Your Resume Score:'}</span>
+                                <strong>
+                                    {customizedResume ? (
+                                        <span style={{ color: '#059669' }}>{customizedResume.newTotalScore}/100</span>
+                                    ) : (
+                                        <span>{score?.total_score || 0}/100</span>
+                                    )}
+                                </strong>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>Match Percentage:</span>
-                                <strong style={{ color: '#059669' }}>{applyingTo.match_percentage || 0}%</strong>
+                                <strong>
+                                    {customizedResume ? (
+                                        <span style={{ color: '#059669' }}>{customizedResume.newMatchScore}%</span>
+                                    ) : (
+                                        <span style={{ color: '#059669' }}>{applyingTo.match_percentage || 0}%</span>
+                                    )}
+                                </strong>
                             </div>
                         </div>
 
@@ -1594,21 +1710,115 @@ function SearcherDashboard() {
                             )}
                         </div>
 
+                        {/* Resume Customization Section */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <div style={{ fontWeight: '600', color: '#374151', fontSize: '15px' }}>Tailored Resume</div>
+                                <button
+                                    onClick={handleGenerateCustomizedResume}
+                                    disabled={isCustomizingResume}
+                                    style={{
+                                        ...styles.actionBtn,
+                                        padding: '8px 16px',
+                                        background: isCustomizingResume ? '#E5E7EB' : '#3A4B41',
+                                        color: isCustomizingResume ? '#9CA3AF' : 'white',
+                                        fontSize: '13px'
+                                    }}
+                                >
+                                    <FileText size={14} />
+                                    {isCustomizingResume ? 'Generating...' : 'Generate Customized Resume'}
+                                </button>
+                            </div>
+                            
+                            {customizeError && (
+                                <div style={{ padding: '12px', background: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>
+                                    {customizeError}
+                                </div>
+                            )}
+
+                            {(isCustomizingResume || customizedResume) && (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                                        {customizedResume && (
+                                            <button
+                                                onClick={handleDownloadPDF}
+                                                style={{
+                                                    background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer',
+                                                    fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px'
+                                                }}
+                                            >
+                                                <Download size={14} /> Download PDF
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden' }}>
+                                        <CustomizedResumePreview 
+                                            data={customizedResume?.data} 
+                                            rawData={customizedResume?.rawData} 
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Resume Selection Section */}
+                        <div style={{ marginBottom: '24px', padding: '16px', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
+                            <div style={{ fontWeight: '600', color: '#374151', fontSize: '15px', marginBottom: '12px' }}>Select Resume to Submit</div>
+                            
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer' }}>
+                                <input type="radio" name="resumeSelection" value="original" checked={resumeSelection === 'original'} onChange={() => setResumeSelection('original')} />
+                                <span style={{ fontSize: '14px', color: '#4B5563' }}>Original Profile Resume</span>
+                            </label>
+                            
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: customizedResume ? 'pointer' : 'not-allowed', opacity: customizedResume ? 1 : 0.5 }}>
+                                <input type="radio" name="resumeSelection" value="tailored" checked={resumeSelection === 'tailored'} onChange={() => setResumeSelection('tailored')} disabled={!customizedResume} />
+                                <span style={{ fontSize: '14px', color: '#4B5563' }}>Tailored Resume (Generated Above)</span>
+                            </label>
+                            
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: resumeSelection === 'custom' ? '12px' : '0' }}>
+                                <input type="radio" name="resumeSelection" value="custom" checked={resumeSelection === 'custom'} onChange={() => setResumeSelection('custom')} />
+                                <span style={{ fontSize: '14px', color: '#4B5563' }}>Upload Custom Resume (PDF)</span>
+                            </label>
+                            
+                            {resumeSelection === 'custom' && (
+                                <div style={{ paddingLeft: '24px' }}>
+                                    <input 
+                                        type="file" 
+                                        accept=".pdf"
+                                        onChange={(e) => setCustomResumeFile(e.target.files[0])}
+                                        style={{ fontSize: '13px' }}
+                                    />
+                                    {customResumeFile && (
+                                        <div style={{ fontSize: '12px', color: '#059669', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Check size={12} /> Ready to upload
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                             <button
                                 style={{ ...styles.actionBtn, ...styles.secondaryBtn }}
-                                onClick={() => setApplyingTo(null)}
+                                onClick={() => { 
+                                    setApplyingTo(null); 
+                                    setCustomizedResume(null); 
+                                    setCustomizeError('');
+                                    setResumeSelection('original');
+                                    setCustomResumeFile(null);
+                                }}
+                                disabled={isSubmittingApp}
                             >
                                 Cancel
                             </button>
-                            <motion.button
-                                style={{ ...styles.actionBtn, ...styles.primaryBtn }}
-                                onClick={() => handleApply(applyingTo.id)}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                            <button
+                                style={{ ...styles.actionBtn, opacity: isSubmittingApp ? 0.7 : 1 }}
+                                onClick={handleSubmitApplication}
+                                disabled={isSubmittingApp || (resumeSelection === 'custom' && !customResumeFile)}
                             >
-                                <Send size={16} /> Submit Application
-                            </motion.button>
+                                <Send size={16} />
+                                {isSubmittingApp ? 'Submitting...' : 'Submit Application'}
+                            </button>
                         </div>
                     </motion.div>
                 </div>

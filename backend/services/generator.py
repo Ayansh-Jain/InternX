@@ -4,7 +4,13 @@ Optimizes resume content for ATS compatibility.
 """
 
 import re
+import json
+import os
+import logging
 from typing import Dict, Any, List, Tuple
+from groq import AsyncGroq
+
+logger = logging.getLogger(__name__)
 
 # Weak verbs to replace with strong action verbs
 VERB_REPLACEMENTS = {
@@ -269,3 +275,87 @@ def format_linkedin_url(url: str) -> str:
             clean = f"linkedin.com/in/{clean}"
     
     return clean
+
+async def customize_resume_for_job(resume_data: Dict[str, Any], job_description: str) -> Dict[str, Any]:
+    """
+    Calls Groq's API to tailor resume data for a specific job description.
+    """
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY is not set in the environment. Please add it to your .env file.")
+    
+    client = AsyncGroq(api_key=api_key)
+    
+    system_prompt = "You are an expert ATS resume optimizer that only outputs JSON. Do not include any explanations or conversational text. ONLY output the raw JSON object."
+
+    prompt = f"""
+    I will provide you with a user's parsed resume data and a job description.
+    Your task is to tailor the resume to emphasize relevant skills and experiences without fabricating content.
+    
+    Instructions:
+    1. Analyze the job description to extract critical keywords, required skills, experience level, and domain-specific terminology.
+    2. Rewrite resume sections intelligently: reorder bullet points by relevance to the job, rephrase achievements using stronger action verbs like 'architected,' 'optimized,' 'scaled,' 'engineered'.
+    3. Emphasize quantifiable metrics—ensure every achievement includes numbers, percentages, or measurable outcomes.
+    4. Ensure grammatically perfect English with no errors.
+    5. Output structured JSON with each section containing formatted content, where formatting instructions specify which words or phrases should be bold, italicized, or hyperlinked.
+    
+    Do not add skills or experiences not already in the resume. Only reorder, rephrase, and prioritize what exists.
+    
+    Output Format (JSON structure):
+    Each resume section should return an object with a content array. For bullet points (like in experience or projects), each bullet should be an ARRAY of text segments, where each segment has text and formatting flags (bold, italic). Example:
+    {{
+      "experience": [
+        {{
+          "company": "Tech Corp",
+          "role": "Software Engineer",
+          "startDate": "Jan 2020",
+          "endDate": "Present",
+          "bullets": [
+            [
+              {{ "text": "architected ", "bold": true }},
+              {{ "text": "a microservices platform handling 2 million requests daily, reducing latency by 40 percent" }}
+            ]
+          ]
+        }}
+      ],
+      "projects": [
+        {{
+          "title": "E-commerce Platform",
+          "bullets": [
+             [
+                {{ "text": "built ", "bold": true }},
+                {{ "text": "a full-stack application using " }},
+                {{ "text": "React", "bold": true }}
+             ]
+          ]
+        }}
+      ]
+    }}
+    
+    Job Description:
+    {job_description}
+    
+    User's Resume Data:
+    {json.dumps(resume_data)}
+    
+    Return ONLY valid JSON.
+    """
+    
+    try:
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0.2,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        # Parse JSON
+        content = response.choices[0].message.content
+        return json.loads(content)
+        
+    except Exception as e:
+        logger.error(f"Error customizing resume with Groq: {e}")
+        raise e
