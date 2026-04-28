@@ -5,6 +5,8 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from datetime import datetime
 
+from services.linucb_bandit import get_bandit
+
 logger = logging.getLogger(__name__)
 
 class RecommendationEngine:
@@ -184,14 +186,31 @@ class RecommendationEngine:
             recent_jobs = sorted(valid_jobs, key=lambda x: x.get("created_at", datetime.min), reverse=True)[:limit]
             return [(job, 0) for job in recent_jobs]
 
-        # Calculate cosine similarity
-        similarities = cosine_similarity([user_vector], job_vectors)[0]
-        
-        # Scale similarities to 0-100 score
-        scores = (similarities * 100).astype(int)
-        
-        # Sort jobs by score
-        scored_jobs = list(zip(valid_jobs, scores))
+        # ── Blended LinUCB + cosine scoring ───────────────────────────────
+        # cosine gives a safe baseline; bandit contribution grows as it learns.
+        # Blend: 40% cosine + 60% UCB (both normalised to [0,1] before mixing).
+        bandit = get_bandit()
+        user_np = np.array(user_vector, dtype=np.float64)
+        scored_jobs_raw = []
+
+        for job, job_vec in zip(valid_jobs, job_vectors):
+            job_np = np.array(job_vec, dtype=np.float64)
+
+            # Cosine similarity → [0, 1] (already in [-1,1], clip low end)
+            cos_sim = float(cosine_similarity([user_np], [job_np])[0][0])
+            cos_norm = float(np.clip((cos_sim + 1) / 2, 0, 1))
+
+            # LinUCB UCB score; normalise with sigmoid so it's on [0,1]
+            job_id_str = str(job.get("_id", ""))
+            context = np.concatenate([user_np, job_np])
+            ucb_raw = bandit.score(job_id_str, context)
+            ucb_norm = float(1 / (1 + np.exp(-ucb_raw)))  # sigmoid
+
+            # Blended final score scaled to 0-100
+            final = 0.4 * cos_norm + 0.6 * ucb_norm
+            scored_jobs_raw.append((job, int(round(final * 100))))
+
+        scored_jobs = scored_jobs_raw
         scored_jobs.sort(key=lambda x: x[1], reverse=True)
         
         # 80/20 split: 80% top matches, 20% random from the rest (exploration)
