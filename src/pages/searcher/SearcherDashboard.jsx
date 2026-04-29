@@ -661,7 +661,11 @@ function SearcherDashboard() {
             let finalCustomizedResume = null;
             
             if (resumeSelection === 'tailored') {
-                finalCustomizedResume = customizedResume?.data || null;
+                // Merge tailored sections (experience, projects) with original rawData (personal, education, skills)
+                finalCustomizedResume = {
+                    ...(customizedResume?.rawData || {}),
+                    ...(customizedResume?.data || {})
+                };
             } else if (resumeSelection === 'custom' && customResumeFile) {
                 const formData = new FormData();
                 formData.append('file', customResumeFile);
@@ -674,7 +678,7 @@ function SearcherDashboard() {
             }
 
             await applicationsAPI.apply({ 
-                job_id: applyingTo._id,
+                job_id: applyingTo.id || applyingTo._id,
                 customized_resume: finalCustomizedResume,
                 application_bio: generatedBio || undefined
             });
@@ -690,7 +694,20 @@ function SearcherDashboard() {
             loadData();
         } catch (err) {
             console.error('Failed to apply:', err);
-            alert(err.response?.data?.detail || err.message || 'Failed to submit application');
+            const errorDetail = err.response?.data?.detail;
+            let errorMessage = 'Failed to submit application';
+            
+            if (typeof errorDetail === 'string') {
+                errorMessage = errorDetail;
+            } else if (Array.isArray(errorDetail)) {
+                errorMessage = errorDetail.map(d => `${d.loc.join('.')}: ${d.msg}`).join('\n');
+            } else if (errorDetail && typeof errorDetail === 'object') {
+                errorMessage = JSON.stringify(errorDetail);
+            } else {
+                errorMessage = err.message || errorMessage;
+            }
+            
+            alert(errorMessage);
         } finally {
             setIsSubmittingApp(false);
         }
