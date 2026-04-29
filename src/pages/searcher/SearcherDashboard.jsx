@@ -793,41 +793,7 @@ function SearcherDashboard() {
             setIsCustomizingResume(false);
         }
     };
-    
-    const handleGenerateBio = async () => {
-        if (!applyingTo) return;
-        
-        setIsGeneratingBio(true);
-        setBioError('');
-        
-        try {
-            // First we need to get the user's latest resume data since it's not currently stored in the simple user object
-            // The profileAPI.get() should return the parsed resume JSON if the user uploaded one
-            const profileRes = await profileAPI.get();
-            const resumeData = profileRes.data.profile?.resumeData || profileRes.data.resumeData;
-            
-            if (!resumeData) {
-                setBioError("No resume data found. Please build or upload your resume first in the Resume Builder.");
-                setIsGeneratingBio(false);
-                return;
-            }
-            
-            const bioData = {
-                resume: resumeData,
-                job_role: applyingTo.title,
-                job_description: applyingTo.description || applyingTo.title
-            };
-            
-            const res = await profileAPI.generateBio(bioData);
-            setGeneratedBio(res.data.bio);
-            
-        } catch (err) {
-            console.error('Bio generation error:', err);
-            setBioError(err.response?.data?.detail || 'Failed to generate AI Bio. Please check your API configuration or try again.');
-        } finally {
-            setIsGeneratingBio(false);
-        }
-    };
+
 
     const handleSaveJob = async (jobId) => {
         try {
@@ -1649,7 +1615,6 @@ function SearcherDashboard() {
             {/* Apply Modal */}
             {applyingTo && (
                 <div 
-                    ref={modalRef}
                     style={styles.modal} 
                     onClick={() => { 
                         setApplyingTo(null); 
@@ -1660,6 +1625,7 @@ function SearcherDashboard() {
                     }}
                 >
                     <motion.div
+                        ref={modalRef}
                         style={styles.modalContent}
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
