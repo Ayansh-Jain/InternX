@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { jobsAPI, applicationsAPI, profileAPI } from '../../services/api';
 import { useNavigate, Link } from 'react-router-dom';
+import CustomizedResumePreview from '../../components/CustomizedResumePreview';
 
 const styles = {
     dashboard: {
@@ -368,6 +369,7 @@ function ProviderDashboard() {
     const [appFilter, setAppFilter] = useState('all');
     const [expandedResumeId, setExpandedResumeId] = useState(null);
     const [updatingStatus, setUpdatingStatus] = useState(null);
+    const [viewingResume, setViewingResume] = useState(null);
 
     useEffect(() => {
         loadJobs();
@@ -908,8 +910,9 @@ function ProviderDashboard() {
                                                         padding: '0 20px 20px',
                                                         borderTop: '1px solid #F3F4F6'
                                                     }}>
-                                                        {/* Bio Section */}
-                                                        {app.applicant_bio && (
+
+                                                        {app.application_bio && (
+
                                                             <div style={{
                                                                 margin: '16px 0',
                                                                 padding: '14px 16px',
@@ -918,11 +921,12 @@ function ProviderDashboard() {
                                                                 borderLeft: '4px solid #3A4B41'
                                                             }}>
                                                                 <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                    <User size={14} /> Applicant Bio
+
+                                                                    <User size={14} /> AI-Tailored Application Bio
                                                                 </div>
                                                                 <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: '1.6' }}>
-                                                                    {app.applicant_bio}
-                                                                </p>
+                                                                    {app.application_bio}
+                                                             </p>
                                                             </div>
                                                         )}
 
@@ -966,6 +970,20 @@ function ProviderDashboard() {
                                                                 <FileText size={14} /> Resume Details
                                                             </div>
                                                             {renderResumeSection(app.resume_snapshot)}
+
+                                                            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                                                                <button
+                                                                    onClick={() => setViewingResume(app.resume_snapshot)}
+                                                                    style={{
+                                                                        background: '#059669', color: 'white', border: 'none',
+                                                                        padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                                                    }}
+                                                                >
+                                                                    <Eye size={14} /> View Full Resume
+                                                                </button>
+                                                            </div>
+
                                                         </div>
 
                                                         {/* Action Buttons */}
@@ -1233,6 +1251,63 @@ function ProviderDashboard() {
                             >
                                 Close
                             </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Resume Viewer Modal */}
+            {viewingResume && (
+                <div style={{
+                    ...styles.modal,
+                    background: 'rgba(0,0,0,0.8)'
+                }} onClick={() => setViewingResume(null)}>
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        style={{
+                            ...styles.modalContent,
+                            maxWidth: '900px',
+                            padding: '0',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={{
+                            padding: '16px 24px',
+                            background: '#F9FAFB',
+                            borderBottom: '1px solid #E5E7EB',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <h3 style={{ margin: 0, fontSize: '18px', color: '#1F2937' }}>
+                                Resume Preview
+                            </h3>
+                            <button
+                                onClick={() => setViewingResume(null)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280' }}
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div style={{
+                            padding: '24px',
+                            overflowY: 'auto',
+                            maxHeight: 'calc(90vh - 120px)',
+                            background: '#F3F4F6'
+                        }}>
+                            <div style={{
+                                maxWidth: '800px',
+                                margin: '0 auto',
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                                borderRadius: '4px',
+                                overflow: 'hidden'
+                            }}>
+                                <CustomizedResumePreview data={viewingResume} rawData={viewingResume} />
+                            </div>
                         </div>
                     </motion.div>
                 </div>
