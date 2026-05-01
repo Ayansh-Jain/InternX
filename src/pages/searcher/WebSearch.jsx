@@ -3,7 +3,7 @@
  * Lets searchers find real jobs/internships on LinkedIn, Indeed, Internshala, etc.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, MapPin, Briefcase, Globe, ChevronRight, ArrowLeft,
@@ -312,6 +312,27 @@ export default function WebSearch() {
     const [savedSet, setSavedSet] = useState(new Set());
     const [appliedSet, setAppliedSet] = useState(new Set());
     const [actionLoading, setActionLoading] = useState(new Set()); // IDs currently loading
+    const [persistenceLoaded, setPersistenceLoaded] = useState(false);
+
+    // On mount: load previously saved/applied jobs so badges persist across sessions
+    useEffect(() => {
+        const loadPersisted = async () => {
+            try {
+                const res = await externalJobsAPI.list('all');
+                const jobs = res.data.jobs || [];
+                const saved = new Set(jobs.filter(j => j.saved).map(j => j.ext_id));
+                const applied = new Set(jobs.filter(j => j.applied).map(j => j.ext_id));
+                setSavedSet(saved);
+                setAppliedSet(applied);
+            } catch (e) {
+                // Silently fail — user might not be logged in yet
+                console.warn('Could not pre-load saved/applied state:', e);
+            } finally {
+                setPersistenceLoaded(true);
+            }
+        };
+        loadPersisted();
+    }, []);
 
     const handleChange = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
@@ -371,8 +392,11 @@ export default function WebSearch() {
         return next;
     });
 
+    // Use same ext_id formula as toPayload so Set keys match the DB
+    const getExtId = (r) => r.id || `${r.source}-${r.title}`;
+
     const handleSave = async (r) => {
-        const id = r.id;
+        const id = getExtId(r);
         setLoading1(id, true);
         try {
             if (savedSet.has(id)) {
@@ -387,7 +411,7 @@ export default function WebSearch() {
     };
 
     const handleMarkApplied = async (r) => {
-        const id = r.id;
+        const id = getExtId(r);
         setLoading1(id, true);
         try {
             if (appliedSet.has(id)) {
@@ -724,35 +748,35 @@ export default function WebSearch() {
                                                     {/* Save button */}
                                                     <button
                                                         onClick={() => handleSave(r)}
-                                                        disabled={actionLoading.has(r.id)}
-                                                        title={savedSet.has(r.id) ? 'Remove from saved' : 'Save for later'}
+                                                        disabled={actionLoading.has(getExtId(r))}
+                                                        title={savedSet.has(getExtId(r)) ? 'Remove from saved' : 'Save for later'}
                                                         style={{
                                                             display: 'inline-flex', alignItems: 'center', gap: '5px',
                                                             padding: '10px 16px', borderRadius: '8px', border: 'none',
-                                                            cursor: actionLoading.has(r.id) ? 'wait' : 'pointer',
+                                                            cursor: actionLoading.has(getExtId(r)) ? 'wait' : 'pointer',
                                                             fontSize: '13px', fontWeight: '600', transition: 'all 0.2s',
-                                                            background: savedSet.has(r.id) ? '#FEF3C7' : '#F3F4F6',
-                                                            color: savedSet.has(r.id) ? '#D97706' : '#374151',
+                                                            background: savedSet.has(getExtId(r)) ? '#FEF3C7' : '#F3F4F6',
+                                                            color: savedSet.has(getExtId(r)) ? '#D97706' : '#374151',
                                                         }}
                                                     >
-                                                        {savedSet.has(r.id) ? '🔖 Saved' : '🔖 Save'}
+                                                        {savedSet.has(getExtId(r)) ? '🔖 Saved' : '🔖 Save'}
                                                     </button>
 
                                                     {/* Mark Applied button */}
                                                     <button
                                                         onClick={() => handleMarkApplied(r)}
-                                                        disabled={actionLoading.has(r.id)}
-                                                        title={appliedSet.has(r.id) ? 'Un-mark as applied' : 'Mark as applied (self-reported)'}
+                                                        disabled={actionLoading.has(getExtId(r))}
+                                                        title={appliedSet.has(getExtId(r)) ? 'Un-mark as applied' : 'Mark as applied (self-reported)'}
                                                         style={{
                                                             display: 'inline-flex', alignItems: 'center', gap: '5px',
                                                             padding: '10px 16px', borderRadius: '8px', border: 'none',
-                                                            cursor: actionLoading.has(r.id) ? 'wait' : 'pointer',
+                                                            cursor: actionLoading.has(getExtId(r)) ? 'wait' : 'pointer',
                                                             fontSize: '13px', fontWeight: '600', transition: 'all 0.2s',
-                                                            background: appliedSet.has(r.id) ? '#D1FAE5' : '#F3F4F6',
-                                                            color: appliedSet.has(r.id) ? '#059669' : '#374151',
+                                                            background: appliedSet.has(getExtId(r)) ? '#D1FAE5' : '#F3F4F6',
+                                                            color: appliedSet.has(getExtId(r)) ? '#059669' : '#374151',
                                                         }}
                                                     >
-                                                        {appliedSet.has(r.id) ? '✅ Applied' : '✅ Mark Applied'}
+                                                        {appliedSet.has(getExtId(r)) ? '✅ Applied' : '✅ Mark Applied'}
                                                     </button>
 
                                                     {r.ai_generated && (

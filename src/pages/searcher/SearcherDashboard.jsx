@@ -477,6 +477,21 @@ function SearcherDashboard() {
         if (activeTab === 'saved-external') loadExternalJobs();
     }, [activeTab]);
 
+    // Pre-load saved/applied external job IDs on mount for badge persistence
+    useEffect(() => {
+        const preloadExternal = async () => {
+            try {
+                const res = await externalJobsAPI.list('all');
+                const jobs = res.data.jobs || [];
+                setWebSavedSet(new Set(jobs.filter(j => j.saved).map(j => j.ext_id)));
+                setWebAppliedSet(new Set(jobs.filter(j => j.applied).map(j => j.ext_id)));
+            } catch (e) {
+                console.warn('Could not pre-load external job states:', e);
+            }
+        };
+        preloadExternal();
+    }, []);
+
     // Debounce search
     useEffect(() => {
         if (typingTimeout) clearTimeout(typingTimeout);
@@ -621,8 +636,11 @@ function SearcherDashboard() {
         is_verified: r.is_verified || false,
     });
 
+    // Use same ext_id formula as toExtPayload so Set keys match DB values
+    const getWebExtId = (r) => r.id || `${r.source}-${r.title}`;
+
     const handleWebSave = async (r) => {
-        const id = r.id;
+        const id = getWebExtId(r);
         setWebActionLoad(id, true);
         try {
             if (webSavedSet.has(id)) {
@@ -636,7 +654,7 @@ function SearcherDashboard() {
     };
 
     const handleWebMarkApplied = async (r) => {
-        const id = r.id;
+        const id = getWebExtId(r);
         setWebActionLoad(id, true);
         try {
             if (webAppliedSet.has(id)) {
@@ -1311,26 +1329,26 @@ function SearcherDashboard() {
                                                     {/* Save button */}
                                                     <button
                                                         onClick={() => handleWebSave(result)}
-                                                        disabled={webActionLoading.has(result.id)}
+                                                        disabled={webActionLoading.has(getWebExtId(result))}
                                                         style={{
                                                             ...styles.actionBtn,
-                                                            background: webSavedSet.has(result.id) ? '#FEF3C7' : '#F3F4F6',
-                                                            color: webSavedSet.has(result.id) ? '#D97706' : '#374151',
+                                                            background: webSavedSet.has(getWebExtId(result)) ? '#FEF3C7' : '#F3F4F6',
+                                                            color: webSavedSet.has(getWebExtId(result)) ? '#D97706' : '#374151',
                                                         }}
                                                     >
-                                                        {webSavedSet.has(result.id) ? '🔖 Saved' : '🔖 Save'}
+                                                        {webSavedSet.has(getWebExtId(result)) ? '🔖 Saved' : '🔖 Save'}
                                                     </button>
                                                     {/* Mark Applied */}
                                                     <button
                                                         onClick={() => handleWebMarkApplied(result)}
-                                                        disabled={webActionLoading.has(result.id)}
+                                                        disabled={webActionLoading.has(getWebExtId(result))}
                                                         style={{
                                                             ...styles.actionBtn,
-                                                            background: webAppliedSet.has(result.id) ? '#D1FAE5' : '#F3F4F6',
-                                                            color: webAppliedSet.has(result.id) ? '#059669' : '#374151',
+                                                            background: webAppliedSet.has(getWebExtId(result)) ? '#D1FAE5' : '#F3F4F6',
+                                                            color: webAppliedSet.has(getWebExtId(result)) ? '#059669' : '#374151',
                                                         }}
                                                     >
-                                                        {webAppliedSet.has(result.id) ? '✅ Applied' : '✅ Mark Applied'}
+                                                        {webAppliedSet.has(getWebExtId(result)) ? '✅ Applied' : '✅ Mark Applied'}
                                                     </button>
                                                 </div>
                                             </motion.div>
