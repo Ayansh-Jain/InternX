@@ -1,4 +1,3 @@
-
 # Dependencies
 node_modules/
 backend/venv/
@@ -14,10 +13,8 @@ backend/.env.*
 # Python
 __pycache__/
 *.pyc
-
 venv/
 backend/venv/
-
 backend/__pycache__/
 backend/*.pyc
 
@@ -30,11 +27,9 @@ backend/test_output.txt
 # Editor/OS
 .vscode/
 .idea/
-
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-

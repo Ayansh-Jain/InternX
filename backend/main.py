@@ -99,9 +99,6 @@ app = FastAPI(
 )
 
 # CORS configuration
-# NOTE: allow_headers=["*"] with allow_credentials=True violates the CORS spec
-# and causes Starlette to return 400 on every OPTIONS preflight. Headers must
-# be listed explicitly when credentials are enabled.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

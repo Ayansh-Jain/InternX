@@ -185,6 +185,7 @@ async def generate_bio_endpoint(data: BioRequest):
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Failed to generate bio: {str(e)}")
+<<<<<<< HEAD
 
 class CustomizeRequest(BaseModel):
     resume_data: Dict[str, Any]
@@ -243,3 +244,5 @@ async def customize_resume(data: CustomizeRequest):
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
+=======
+>>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621

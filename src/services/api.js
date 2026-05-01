@@ -146,5 +146,4 @@ export const resumeAPI = {
         headers: { 'Content-Type': 'multipart/form-data' }
     }),
 };
-
 export default api;
