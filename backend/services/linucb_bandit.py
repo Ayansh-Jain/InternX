@@ -46,7 +46,7 @@ class LinUCBBandit:
 
     Args:
         context_dim: Dimensionality of the context vector (2 × vocab_size).
-        alpha:       Exploration coefficient. Higher → more exploration.
+        alpha:       Exploration coefficient. Higher -> more exploration.
                      0.5 is a good starting point.
     """
 
@@ -141,7 +141,7 @@ class LinUCBBandit:
                 }
             with open(path, "wb") as f:
                 pickle.dump(state, f)
-            logger.info("LinUCB state saved → %s (%d arms)", path, len(state["arms"]))
+            logger.info("LinUCB state saved -> %s (%d arms)", path, len(state["arms"]))
         except Exception as exc:
             logger.error("LinUCB save failed: %s", exc)
 
@@ -166,7 +166,7 @@ class LinUCBBandit:
                     arm.theta_hat = arm_data["theta_hat"]
                     self._arms[jid] = arm
             logger.info(
-                "LinUCB state loaded ← %s (%d arms)", path, len(self._arms)
+                "LinUCB state loaded <- %s (%d arms)", path, len(self._arms)
             )
         except Exception as exc:
             logger.error("LinUCB load failed: %s — starting fresh", exc)
@@ -182,7 +182,7 @@ class LinUCBBandit:
     def _maybe_resize(self, d: int):
         """If vocab grew, update context_dim (new arms pick up the right size)."""
         if d != self.context_dim and d > 0:
-            logger.debug("LinUCB context_dim updated %d → %d", self.context_dim, d)
+            logger.debug("LinUCB context_dim updated %d -> %d", self.context_dim, d)
             self.context_dim = d
 
 

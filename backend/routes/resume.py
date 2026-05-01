@@ -7,6 +7,8 @@ from services.generator import optimize_resume_content, customize_resume_for_job
 from services.grammar import check_grammar
 from services.parser import parse_resume_pdf
 from services.bio_generator import process_bio_generation
+from services.export import generate_pdf_from_html, generate_docx_from_data
+from fastapi.responses import StreamingResponse
 
 router = APIRouter()
 
@@ -205,9 +207,9 @@ async def customize_resume(data: CustomizeRequest):
             merged_experience = []
             for exp in customized_data["experience"]:
                 bullets_text = []
-                for bullet_group in exp.get("bullets", []):
+                for bullet in exp.get("bullets", []):
                     # Combine all text segments into a single string for this bullet
-                    text = "".join([segment.get("text", "") for segment in bullet_group])
+                    text = "".join([segment.get("text", "") for segment in bullet.get("formatting", [])])
                     bullets_text.append(text)
                 new_exp = exp.copy()
                 new_exp["responsibilities"] = bullets_text
@@ -218,8 +220,8 @@ async def customize_resume(data: CustomizeRequest):
             merged_projects = []
             for proj in customized_data["projects"]:
                 bullets_text = []
-                for bullet_group in proj.get("bullets", []):
-                    text = "".join([segment.get("text", "") for segment in bullet_group])
+                for bullet in proj.get("bullets", []):
+                    text = "".join([segment.get("text", "") for segment in bullet.get("formatting", [])])
                     bullets_text.append(text)
                 new_proj = proj.copy()
                 new_proj["description"] = " ".join(bullets_text)
@@ -243,3 +245,37 @@ async def customize_resume(data: CustomizeRequest):
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class HTMLPDFRequest(BaseModel):
+    html: str
+
+@router.post("/export/pdf")
+async def export_pdf(request: HTMLPDFRequest):
+    try:
+        pdf_buffer = generate_pdf_from_html(request.html)
+        return StreamingResponse(
+            pdf_buffer, 
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=resume.pdf"}
+        )
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+class DocxExportRequest(BaseModel):
+    resume_data: Dict[str, Any]
+
+@router.post("/export/docx")
+async def export_docx(request: DocxExportRequest):
+    try:
+        doc_buffer = generate_docx_from_data(request.resume_data)
+        return StreamingResponse(
+            doc_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": "attachment; filename=resume.docx"}
+        )
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+

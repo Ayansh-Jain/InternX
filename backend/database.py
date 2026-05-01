@@ -6,6 +6,10 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Optional
 import os
 import ssl
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # MongoDB connection settings
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb+srv://Ayansh:9WHEsz***@internx.hernfm1.mongodb.net/?appName=INTERNX")

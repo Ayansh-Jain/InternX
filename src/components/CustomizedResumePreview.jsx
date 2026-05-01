@@ -10,7 +10,6 @@ const baseStyles = {
         color: '#1F2937',
         padding: '40px',
         background: 'white',
-        minHeight: '800px',
     },
     header: {
         textAlign: 'center',
@@ -303,9 +302,11 @@ function CustomizedResumePreview({ data, rawData, template = 'classic' }) {
                             </div>
                             {exp.bullets?.length > 0 && (
                                 <ul style={styles.bulletList}>
-                                    {exp.bullets.map((bulletGroup, rIndex) => (
+                                    {exp.bullets.map((bullet, rIndex) => (
                                         <li key={rIndex} style={styles.bullet}>
-                                            {Array.isArray(bulletGroup) ? renderFormattedText(bulletGroup) : renderFormattedText([bulletGroup])}
+                                            {bullet.formatting ? 
+                                                renderFormattedText(bullet.formatting) : 
+                                                (bullet.text || bullet.tailored_text || bullet.original_text)}
                                         </li>
                                     ))}
                                 </ul>
@@ -326,9 +327,11 @@ function CustomizedResumePreview({ data, rawData, template = 'classic' }) {
                             </div>
                             {proj.bullets?.length > 0 && (
                                 <ul style={styles.bulletList}>
-                                    {proj.bullets.map((bulletGroup, rIndex) => (
+                                    {proj.bullets.map((bullet, rIndex) => (
                                         <li key={rIndex} style={styles.bullet}>
-                                            {Array.isArray(bulletGroup) ? renderFormattedText(bulletGroup) : renderFormattedText([bulletGroup])}
+                                            {bullet.formatting ? 
+                                                renderFormattedText(bullet.formatting) : 
+                                                (bullet.text || bullet.tailored_text || bullet.original_text)}
                                         </li>
                                     ))}
                                 </ul>

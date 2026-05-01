@@ -21,6 +21,25 @@ engine = RecommendationEngine()
 cache = RecommendationCache()
 
 
+@router.get("/liked-ids")
+async def get_liked_job_ids(
+    current_user: dict = Depends(require_job_searcher)
+):
+    """
+    Return the set of job IDs this user has previously 'liked'.
+    Used by the frontend to restore the heart state after a page refresh.
+    """
+    user_id = str(current_user["_id"])
+    interactions_collection = Database.get_collection(INTERACTIONS_COLLECTION)
+    cursor = interactions_collection.find(
+        {"user_id": user_id, "action": "like"},
+        {"job_id": 1, "_id": 0}
+    )
+    docs = await cursor.to_list(length=None)
+    liked_ids = list({doc["job_id"] for doc in docs})
+    return {"liked_job_ids": liked_ids}
+
+
 @router.post("/interact", status_code=status.HTTP_200_OK)
 async def log_interaction(
     interaction: InteractionCreate,
@@ -88,8 +107,8 @@ async def log_interaction(
     ])
     bandit.update(interaction.job_id, context, reward)
 
-    # 6. Invalidate cache for this user
-    cache.invalidate(f"recs_{interaction.user_id}")
+    # 6. Invalidate ALL cache pages for this user (prefix match)
+    cache.invalidate_prefix(f"recs_{interaction.user_id}")
 
     return {"message": "Interaction logged", "status": "success"}
 

@@ -5,7 +5,7 @@ Replaces the keyword-overlap `calculate_match_percentage()` with a small
 neural network that improves from every provider accept/reject decision.
 
 Architecture:
-    Input  (8)  → Linear(8→16) → ReLU → Linear(16→1) → Sigmoid → score ∈ [0,1]
+    Input  (8)  -> Linear(8->16) -> ReLU -> Linear(16->1) -> Sigmoid -> score ∈ [0,1]
     Total parameters: 8×16+16 + 16×1+1 = 161
 
 Feature vector (8 dimensions):
@@ -23,10 +23,10 @@ Online REINFORCE update (one step, Adam, lr=0.001):
     optimizer.zero_grad(); loss.backward(); optimizer.step()
 
 Rewards:
-    accepted     → +1.0
-    shortlisted  → +0.5
-    rejected     → −1.0
-    other        →  no update
+    accepted     -> +1.0
+    shortlisted  -> +0.5
+    rejected     -> −1.0
+    other        ->  no update
 """
 
 import logging
@@ -163,7 +163,7 @@ class ApplicantRanker:
                 norm_j = np.linalg.norm(j)
                 if norm_u > 0 and norm_j > 0:
                     sim = float(np.dot(u, j) / (norm_u * norm_j))
-                    feats[2] = float(np.clip((sim + 1) / 2, 0, 1))  # map [-1,1]→[0,1]
+                    feats[2] = float(np.clip((sim + 1) / 2, 0, 1))  # map [-1,1]->[0,1]
             else:
                 feats[2] = feats[0]  # fall back to skill overlap as proxy
 
@@ -230,7 +230,7 @@ class ApplicantRanker:
                 raw_score = float(self._model(features.unsqueeze(0)))
 
         pct = int(round(raw_score * 100))
-        logger.debug("ApplicantRanker.score → %d%%", pct)
+        logger.debug("ApplicantRanker.score -> %d%%", pct)
         return pct
 
     def score_with_features(
@@ -263,8 +263,8 @@ class ApplicantRanker:
 
         loss = −reward × log(score + ε)
 
-        Positive reward (accept)  → push score up.
-        Negative reward (reject)  → push score down.
+        Positive reward (accept)  -> push score up.
+        Negative reward (reject)  -> push score down.
         """
         if isinstance(features, list):
             feat_tensor = torch.tensor(features, dtype=torch.float32)
@@ -295,7 +295,7 @@ class ApplicantRanker:
                 },
                 path,
             )
-            logger.info("ApplicantRanker weights saved → %s", path)
+            logger.info("ApplicantRanker weights saved -> %s", path)
         except Exception as exc:
             logger.error("ApplicantRanker save failed: %s", exc)
 
@@ -308,7 +308,7 @@ class ApplicantRanker:
             checkpoint = torch.load(path, map_location="cpu", weights_only=True)
             self._model.load_state_dict(checkpoint["model_state"])
             self._optimizer.load_state_dict(checkpoint["optimizer_state"])
-            logger.info("ApplicantRanker weights loaded ← %s", path)
+            logger.info("ApplicantRanker weights loaded <- %s", path)
         except Exception as exc:
             logger.error("ApplicantRanker load failed: %s — starting fresh", exc)
 

@@ -7,9 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from datetime import datetime
 import uvicorn
+import os
+from dotenv import load_dotenv
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from database import Database
 from routes.resume import router as resume_router
@@ -85,7 +90,7 @@ async def lifespan(app: FastAPI):
     # Persist RL model states before server stops
     get_bandit().save(bandit_path)
     get_ranker().save(ranker_path)
-    print(f"[RL] Models persisted → {_here}")
+    print(f"[RL] Models persisted -> {_here}")
 
     scheduler.shutdown(wait=False)
     await Database.disconnect()

@@ -73,7 +73,7 @@ def calculate_match_percentage(user: dict, job: dict) -> int:
 # ── Helper: batch fetch by IDs ────────────────────────────────────────────────
 
 async def _batch_fetch(collection, id_field: str, ids: list) -> dict:
-    """Fetch multiple documents by a string ID field and return a id→doc dict."""
+    """Fetch multiple documents by a string ID field and return a id->doc dict."""
     if not ids:
         return {}
     # We store IDs as strings in most places; try ObjectId conversion for _id lookups

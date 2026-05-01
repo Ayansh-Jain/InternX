@@ -258,3 +258,9 @@ class RecommendationCache:
     def invalidate(self, key: str):
         if key in self._cache:
             del self._cache[key]
+
+    def invalidate_prefix(self, prefix: str):
+        """Remove all cache entries whose key starts with the given prefix."""
+        keys_to_delete = [k for k in list(self._cache.keys()) if k.startswith(prefix)]
+        for k in keys_to_delete:
+            del self._cache[k]

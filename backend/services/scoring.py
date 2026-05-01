@@ -91,7 +91,7 @@ def calculate_resume_score(data: Dict[str, Any]) -> Dict[str, Any]:
     elif total_score >= 60:
         raw_feedback.insert(0, {"type": "success", "message": "Good job! Your resume is well-structured with room for minor improvements."})
 
-    # Group feedback by severity: error → improve → warning → tip → success
+    # Group feedback by severity: error -> improve -> warning -> tip -> success
     _PRIORITY = {"error": 0, "improve": 1, "warning": 2, "grammar": 2, "tip": 3, "success": 4}
     sorted_feedback = sorted(raw_feedback, key=lambda f: _PRIORITY.get(f.get("type", "tip"), 3))
 

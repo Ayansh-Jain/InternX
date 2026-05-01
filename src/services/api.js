@@ -137,6 +137,7 @@ export const externalJobsAPI = {
 export const recommendationsAPI = {
     getFeed: (params) => api.get('/recommendations/feed', { params }),
     interact: (data) => api.post('/recommendations/interact', data),
+    getLikedIds: () => api.get('/recommendations/liked-ids'),
 };
 
 // Resume API
@@ -145,6 +146,8 @@ export const resumeAPI = {
     parse: (fileData) => api.post('/resume/parse-resume', fileData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     }),
+    exportPdf: (data) => api.post('/export/pdf', data, { responseType: 'blob' }),
+    exportDocx: (data) => api.post('/export/docx', data, { responseType: 'blob' }),
 };
 
 export default api;

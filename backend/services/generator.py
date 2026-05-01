@@ -294,15 +294,12 @@ async def customize_resume_for_job(resume_data: Dict[str, Any], job_description:
     
     Instructions:
     1. Analyze the job description to extract critical keywords, required skills, experience level, and domain-specific terminology.
-    2. Rewrite resume sections intelligently: reorder bullet points by relevance to the job, rephrase achievements using stronger action verbs like 'architected,' 'optimized,' 'scaled,' 'engineered'.
-    3. Emphasize quantifiable metrics—ensure every achievement includes numbers, percentages, or measurable outcomes.
-    4. Ensure grammatically perfect English with no errors.
-    5. Output structured JSON with each section containing formatted content, where formatting instructions specify which words or phrases should be bold, italicized, or hyperlinked.
-    
-    Do not add skills or experiences not already in the resume. Only reorder, rephrase, and prioritize what exists.
+    2. Rewrite resume sections intelligently: rephrase achievements using stronger action verbs, align keywords, and adjust the tone to sound more polished and less personal.
+    3. Emphasize quantifiable metrics.
+    4. For EVERY bullet point in 'experience' and 'projects' that you modify, you MUST provide the `original_text`, the `tailored_text`, a `change_reason` explaining why you changed it (e.g., keyword alignment, tone shift, action verb), and an `is_modified` flag set to true. If you don't modify a bullet, set `is_modified` to false and `tailored_text` to the same as `original_text`.
+    5. Output structured JSON.
     
     Output Format (JSON structure):
-    Each resume section should return an object with a content array. For bullet points (like in experience or projects), each bullet should be an ARRAY of text segments, where each segment has text and formatting flags (bold, italic). Example:
     {{
       "experience": [
         {{
@@ -311,10 +308,16 @@ async def customize_resume_for_job(resume_data: Dict[str, Any], job_description:
           "startDate": "Jan 2020",
           "endDate": "Present",
           "bullets": [
-            [
-              {{ "text": "architected ", "bold": true }},
-              {{ "text": "a microservices platform handling 2 million requests daily, reducing latency by 40 percent" }}
-            ]
+            {{
+              "original_text": "worked on a microservices platform",
+              "tailored_text": "Architected a microservices platform handling 2 million requests daily, reducing latency by 40 percent",
+              "change_reason": "Replaced weak verb 'worked on' with 'Architected' and added quantifiable metrics.",
+              "is_modified": true,
+              "formatting": [
+                {{ "text": "Architected ", "bold": true }},
+                {{ "text": "a microservices platform handling 2 million requests daily, reducing latency by 40 percent" }}
+              ]
+            }}
           ]
         }}
       ],
@@ -322,11 +325,17 @@ async def customize_resume_for_job(resume_data: Dict[str, Any], job_description:
         {{
           "title": "E-commerce Platform",
           "bullets": [
-             [
-                {{ "text": "built ", "bold": true }},
-                {{ "text": "a full-stack application using " }},
-                {{ "text": "React", "bold": true }}
-             ]
+             {{
+                "original_text": "made a frontend",
+                "tailored_text": "Developed a responsive frontend application using React",
+                "change_reason": "Added 'Developed', 'responsive', and specific technology 'React' for keyword alignment.",
+                "is_modified": true,
+                "formatting": [
+                  {{ "text": "Developed ", "bold": true }},
+                  {{ "text": "a responsive frontend application using " }},
+                  {{ "text": "React", "bold": true }}
+                ]
+             }}
           ]
         }}
       ]

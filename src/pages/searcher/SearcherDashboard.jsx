@@ -13,6 +13,8 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { jobsAPI, applicationsAPI, profileAPI, searchAPI, recommendationsAPI, externalJobsAPI, resumeAPI } from '../../services/api';
 import CustomizedResumePreview from '../../components/CustomizedResumePreview';
+import ResumeComparison from '../../components/ResumeComparison';
+import ResumePreview from '../../components/ResumePreview';
 import { useNavigate, Link } from 'react-router-dom';
 
 const styles = {
@@ -437,6 +439,7 @@ function SearcherDashboard() {
     const [showSuccess, setShowSuccess] = useState(false);
     
     const [customizedResume, setCustomizedResume] = useState(null);
+    const [hybridResumeData, setHybridResumeData] = useState(null);
     const [isCustomizingResume, setIsCustomizingResume] = useState(false);
     const [customizeError, setCustomizeError] = useState('');
     
@@ -476,6 +479,16 @@ function SearcherDashboard() {
         loadData();
         if (activeTab === 'saved-external') loadExternalJobs();
     }, [activeTab]);
+
+    // Load persisted liked job IDs from the database on first mount
+    useEffect(() => {
+        recommendationsAPI.getLikedIds()
+            .then(res => {
+                const ids = res.data.liked_job_ids || [];
+                setLikedJobs(new Set(ids));
+            })
+            .catch(() => {}); // silently fail if not a job searcher
+    }, []);
 
     // Debounce search
     useEffect(() => {
@@ -538,9 +551,13 @@ function SearcherDashboard() {
                 job_id: jobId,
                 action: action
             });
-            // If they liked or applied, refresh the 'for-you' feed in the background to show new recs
+            // After a strong signal (like/apply), refresh feed so new ranking is visible.
+            // We await the interact call above first so the backend has already updated
+            // the preference vector and invalidated the cache before we fetch again.
             if (action === 'like' || action === 'apply') {
-                recommendationsAPI.getFeed({ limit: 20 }).then(res => setRecommendedJobs(res.data.jobs || []));
+                recommendationsAPI.getFeed({ limit: 20 })
+                    .then(res => setRecommendedJobs(res.data.jobs || []))
+                    .catch(() => {});
             }
         } catch (err) {
             console.error(`Failed to log ${action} interaction:`, err);
@@ -552,13 +569,12 @@ function SearcherDashboard() {
     };
 
     const toggleLike = (e, jobId) => {
-        e.stopPropagation(); // prevent triggering job click
+        e.stopPropagation();
         setLikedJobs(prev => {
             const next = new Set(prev);
             if (next.has(jobId)) {
                 next.delete(jobId);
-                // Depending on requirements, we might not send an API call for 'unlike', 
-                // but we definitely want to log 'like'.
+                // No unlike API — just remove from local state
             } else {
                 next.add(jobId);
                 handleInteraction(jobId, 'like');
@@ -1625,7 +1641,7 @@ function SearcherDashboard() {
                     }}
                 >
                     <motion.div
-                        style={styles.modalContent}
+                        style={{ ...styles.modalContent, maxWidth: customizedResume ? '1200px' : '600px', transition: 'max-width 0.3s ease' }}
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         onClick={e => e.stopPropagation()}
@@ -1754,26 +1770,66 @@ function SearcherDashboard() {
                             )}
 
                             {(isCustomizingResume || customizedResume) && (
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
-                                        {customizedResume && (
-                                            <button
-                                                onClick={handleDownloadPDF}
-                                                style={{
-                                                    background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer',
-                                                    fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px'
+                                <div style={{ marginTop: '16px' }}>
+                                    {!isCustomizingResume && customizedResume && (
+                                        <>
+                                            <ResumeComparison 
+                                                originalData={customizedResume.rawData}
+                                                tailoredData={customizedResume.data}
+                                                isSubmittingApp={isSubmittingApp}
+                                                onDownloadPdf={async (hybridData) => {
+                                                    setHybridResumeData(hybridData);
+                                                    setTimeout(async () => {
+                                                        const html2pdf = (await import('html2pdf.js')).default;
+                                                        const element = document.getElementById('hidden-hybrid-preview');
+                                                        if (element) {
+                                                            const opt = {
+                                                                margin: 0.5,
+                                                                filename: `Tailored_Resume_${hybridData.personal?.fullName || 'User'}_InternX.pdf`,
+                                                                image: { type: 'jpeg', quality: 0.98 },
+                                                                html2canvas: { scale: 2, useCORS: true },
+                                                                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+                                                            };
+                                                            html2pdf().set(opt).from(element).save();
+                                                        }
+                                                    }, 500);
                                                 }}
-                                            >
-                                                <Download size={14} /> Download PDF
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div style={{ border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden' }}>
-                                        <CustomizedResumePreview 
-                                            data={customizedResume?.data} 
-                                            rawData={customizedResume?.rawData} 
-                                        />
-                                    </div>
+                                                onDownloadWord={async (hybridData) => {
+                                                    try {
+                                                        const res = await resumeAPI.exportDocx({ resume_data: hybridData });
+                                                        const url = window.URL.createObjectURL(new Blob([res.data]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.setAttribute('download', 'Tailored_Resume.docx');
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        link.remove();
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                        alert('Failed to download Word doc');
+                                                    }
+                                                }}
+                                                onUploadDb={async (hybridData) => {
+                                                    setCustomizedResume({
+                                                        ...customizedResume,
+                                                        data: hybridData
+                                                    });
+                                                    setResumeSelection('tailored');
+                                                    // Start submission logic
+                                                    setTimeout(() => {
+                                                        const submitBtn = document.getElementById('submit-app-btn');
+                                                        if (submitBtn) submitBtn.click();
+                                                    }, 100);
+                                                }}
+                                            />
+                                            {/* Hidden div for PDF generation using hybrid data - Using same component as Builder */}
+                                            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+                                                <div id="hidden-hybrid-preview" style={{ width: '800px' }}>
+                                                    <ResumePreview data={hybridResumeData || customizedResume.data} template="classic" />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1829,6 +1885,7 @@ function SearcherDashboard() {
                                 Cancel
                             </button>
                             <button
+                                id="submit-app-btn"
                                 style={{ ...styles.actionBtn, opacity: isSubmittingApp ? 0.7 : 1 }}
                                 onClick={handleSubmitApplication}
                                 disabled={isSubmittingApp || (resumeSelection === 'custom' && !customResumeFile)}
