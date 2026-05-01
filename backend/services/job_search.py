@@ -18,6 +18,7 @@ from urllib.parse import quote_plus
 load_dotenv()
 
 JSEARCH_API_KEY = os.getenv("JSEARCH_API_KEY")
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
 # ── Trusted domains ───────────────────────────────────────────────────────────
 TRUSTED_DOMAINS = [
@@ -43,273 +44,42 @@ PLATFORMS = [
     {"name": "Devfolio",        "url": lambda t, c, l: "https://devfolio.co/hackathons"},
     # Government / Sarkari portals
     {"name": "NCS Gov",         "url": lambda t, c, l: f"https://www.ncs.gov.in/Pages/SearchJob.aspx?searchText={quote_plus(t)}&location={quote_plus(l or 'India')}"},
-    {"name": "Sarkari Result",  "url": lambda t, c, l: f"https://www.sarkariresult.com/"},
-    {"name": "UPSC",            "url": lambda t, c, l: "https://upsc.gov.in/examinations/active-examinations"},
-    {"name": "SSC",             "url": lambda t, c, l: "https://ssc.nic.in/Portal/Notices"},
-    {"name": "IBPS",            "url": lambda t, c, l: "https://www.ibps.in/"},
+    {"name": "Sarkari Result",  "url": lambda t, c, l: f"https://www.google.com/search?q=site%3Asarkariresult.com+{quote_plus(t)}"},
+    {"name": "UPSC",            "url": lambda t, c, l: f"https://www.google.com/search?q=site%3Aupsc.gov.in+{quote_plus(t)}"},
+    {"name": "SSC",             "url": lambda t, c, l: f"https://www.google.com/search?q=site%3Assc.nic.in+{quote_plus(t)}"},
+    {"name": "IBPS",            "url": lambda t, c, l: f"https://www.google.com/search?q=site%3Aibps.in+{quote_plus(t)}"},
     {"name": "Naukri Gov",      "url": lambda t, c, l: f"https://www.naukri.com/government-jobs?keyword={quote_plus(t)}"},
+    {"name": "FreeJobAlert",    "url": lambda t, c, l: f"https://www.google.com/search?q=site%3Afreejobalert.com+{quote_plus(t)}"},
 ]
 
-# ── Template data pools ───────────────────────────────────────────────────────
-# ── Template data pools — GENERIC / NON-FAKE ──────────────────────────────────
-# Using descriptors instead of specific names to avoid "fake" data
-GENERIC_TECH_DESCRIPTORS = [
-    "Product Tech Startup", "Early-stage Fintech", "Unicorn SaaS Firm", 
-    "Top-tier MNC", "Agile Software House", "Global Tech Giant",
-    "E-commerce Leader", "AI Research Lab", "Cloud Infrastructure Firm",
-    "Cybersecurity Specialist", "EdTech Innovator", "B2B SaaS Startup"
-]
-
-GENERIC_NON_TECH_DESCRIPTORS = [
-    "Big 4 Consulting Firm", "Leading Private Bank", "Global Investment Bank",
-    "FMCG Major", "Strategic Growth Firm", "Business Operations Lead",
-    "Digital Marketing Agency", "EdTech Content House"
-]
-
-# Domain-specific generic pools
-COMPANY_POOLS = {
-    "frontend": ["High-growth Product Startup", "E-commerce Giant", "UX-focused Fintech", "Design-led Tech Firm"],
-    "backend":  ["Stealth SaaS Startup", "Scalable Infrastructure Firm", "Cloud native MNC", "Backend Systems Specialist"],
-    "mobile":   ["Top Mobile App Studio", "Consumer Tech Unicorn", "Fintech Mobile Lead"],
-    "data":     ["Data Analytics MNC", "AI Solutions Lab", "ML Research Center"],
-    "fintech":  ["Leading Neo-bank", "WealthTech Startup", "Payments Infrastructure Firm"],
-    "marketing":["Growth Marketing Agency", "Consumer Brand MNC", "Digital Strategy House"],
-    "consulting":["Global Management Consulting", "Strategy & Operations Firm", "IT Advisory House"],
-    "default":  ["Tech-first MNC", "High-growth Startup", "Product Innovation Lab"]
-
-}
-
-CITIES = [
-    "Bangalore", "Mumbai", "Hyderabad", "Chennai", "Pune",
-    "Delhi NCR", "Gurgaon", "Noida", "Kolkata", "Ahmedabad",
-]
-
-# Role-specific description templates  {keyword: [description, ...]}
-DESCRIPTIONS = {
-    "default": [
-        "Work closely with senior engineers to design, build, and ship high-quality features. Participate in code reviews, sprint planning, and cross-functional team discussions.",
-        "Collaborate with product and design teams to translate requirements into robust implementations. Own end-to-end delivery of features from ideation to production.",
-        "Contribute to the architecture and development of scalable systems serving millions of users. Gain hands-on exposure to cutting-edge technologies and best practices.",
-        "Join a fast-paced team where you will tackle real engineering challenges, write clean maintainable code, and continuously improve system performance.",
-    ],
-    "react": [
-        "Build responsive, performant React applications with TypeScript. Work on component libraries, state management (Redux/Zustand), and integrations with REST/GraphQL APIs.",
-        "Develop reusable UI components and micro-frontends using React 18+ and Next.js. Optimize rendering performance, accessibility (WCAG), and Core Web Vitals scores.",
-        "Lead frontend architecture decisions, implement design systems, and mentor junior developers. Own the full React development lifecycle from wireframes to deployment.",
-    ],
-    "frontend": [
-        "Design and implement pixel-perfect UIs from Figma designs. Ensure cross-browser compatibility, write unit tests with Jest, and maintain 90%+ Lighthouse scores.",
-        "Build interactive dashboards and data-visualization components using React, D3.js, and Chart.js. Integrate real-time WebSocket data feeds.",
-    ],
-    "backend": [
-        "Design and implement RESTful and GraphQL APIs using Node.js/Python/Go. Optimize database queries, implement caching strategies, and ensure high availability.",
-        "Build microservices for high-throughput systems handling 10M+ requests/day. Own service reliability, monitoring (Grafana/Prometheus), and on-call rotations.",
-        "Architect event-driven systems using Kafka/RabbitMQ. Write integration tests, manage CI/CD pipelines, and drive engineering excellence initiatives.",
-    ],
-    "data": [
-        "Analyze large datasets using Python, SQL, and PySpark. Build ETL pipelines, develop dashboards in Tableau/Metabase, and present insights to business stakeholders.",
-        "Design and maintain data warehouses on BigQuery/Snowflake. Develop ML feature pipelines and collaborate with data scientists to deploy models at scale.",
-        "Conduct A/B tests, build predictive models, and own end-to-end analytics for user growth and engagement metrics.",
-    ],
-    "machine learning": [
-        "Train, evaluate, and deploy ML models for recommendation, NLP, and computer vision use cases. Contribute to the MLOps infrastructure and model monitoring.",
-        "Research and implement state-of-the-art deep learning architectures. Fine-tune LLMs for domain-specific tasks and build end-to-end AI products.",
-    ],
-    "ai": [
-        "Build and fine-tune large language models and generative AI systems. Develop prompt engineering frameworks, RAG pipelines, and AI evaluation benchmarks.",
-        "Research novel AI/ML techniques and translate them into production-grade systems. Work on model alignment, safety, and performance optimization.",
-    ],
-    "product": [
-        "Define product strategy, write PRDs, and work with engineering and design to ship customer-centric features. Run discovery interviews, analyze metrics, and prioritize the roadmap.",
-        "Own 0-to-1 product development for a new business vertical. Coordinate across growth, marketing, and engineering teams to deliver measurable outcomes.",
-    ],
-    "design": [
-        "Create wireframes, interactive prototypes, and production-ready designs in Figma. Conduct usability testing, maintain the design system, and collaborate with engineers.",
-        "Lead UX research — user interviews, surveys, journey mapping — and translate insights into delightful product experiences that increase conversion and retention.",
-    ],
-    "devops": [
-        "Manage cloud infrastructure (AWS/GCP/Azure) using Terraform and Kubernetes. Implement CI/CD pipelines, security best practices, and cost optimization strategies.",
-        "Build and maintain observability stacks (ELK, Prometheus, Grafana). Drive SRE practices, incident response, and infrastructure-as-code adoption.",
-    ],
-    "security": [
-        "Perform penetration testing, vulnerability assessments, and security code reviews. Develop security policies and work with engineering teams to remediate findings.",
-    ],
-    "marketing": [
-        "Plan and execute performance marketing campaigns across Google, Meta, and programmatic channels. Analyze ROAS, CAC, and LTV to optimize spend and creative.",
-        "Build and grow organic channels (SEO, content, community) alongside paid acquisition. Own brand storytelling across digital platforms.",
-    ],
-    "finance": [
-        "Perform financial modeling, variance analysis, and management reporting. Support FP&A cycles, investor relations, and strategic planning initiatives.",
-    ],
-    "sales": [
-        "Own the full sales cycle from prospecting to closure for mid-market and enterprise accounts. Collaborate with solutions engineering and customer success teams.",
-    ],
-    "internship": [
-        "Gain real-world experience by contributing to live products used by millions. Receive mentorship, attend weekly tech talks, and present your work at intern demo day.",
-        "Work on impactful projects with a dedicated buddy and manager. Eligible for a pre-placement offer based on performance.",
-    ],
-    "hackathon": [
-        "Compete in a 48-hour hackathon with ₹5 lakh prize pool. Theme: AI-powered solutions for Bharat. Open to undergraduate and postgraduate students.",
-        "Join India's biggest student innovation challenge. Build MVPs, get mentored by industry leaders, and win internship offers from top startups.",
-    ],
-    "government": [
-        "Apply for a prestigious Central / State Government position. Offers job security, pension benefits, and structured career progression. Eligible candidates must meet the educational and age criteria.",
-        "Recruitment open under the Public Sector Undertaking (PSU) category. Candidates will undergo written examination followed by interview. Check official notification for eligibility and last date.",
-        "Sarkari Naukri opportunity under Group A/B cadre. Salary as per 7th Pay Commission. Reservation applicable as per Govt. of India norms. Apply through the official portal.",
-    ],
-}
-
-SALARY_RANGES = {
-    "internship":   ["₹8,000/month", "₹10,000/month", "₹12,000/month", "₹15,000/month", "₹20,000/month", "₹25,000/month"],
-    "part-time":    ["₹15,000/month", "₹20,000/month", "₹25,000/month", "₹30,000/month"],
-    "full-time":    ["₹6–10 LPA", "₹10–15 LPA", "₹12–18 LPA", "₹15–22 LPA", "₹18–28 LPA", "₹25–40 LPA"],
-    "contract":     ["₹50,000/month", "₹60,000/month", "₹80,000/month", "₹1,00,000/month"],
-    "hackathon":    ["Prize: ₹1 Lakh", "Prize: ₹2 Lakh", "Prize: ₹5 Lakh", "No stipend — equity potential"],
-    "remote":       ["₹8–12 LPA", "₹12–18 LPA", "₹15–25 LPA", "$2,000–3,000/month"],
-    "government":   ["₹25,000–35,000/month (Level 4)", "₹35,000–50,000/month (Level 6)", "₹47,600–1,51,100/month (Level 8)", "₹56,100–1,77,500/month (Level 10)"],
-    "default":      ["₹8–12 LPA", "₹12–18 LPA", "₹15–22 LPA", "Competitive"],
-}
-
-
-def _get_description(query: str, job_type: Optional[str]) -> str:
-    q_lower = query.lower()
-    # Try to match specific role keywords
-    for key, descs in DESCRIPTIONS.items():
-        if key in q_lower:
-            return random.choice(descs)
-    # Fall back to job_type match
-    if job_type and job_type.lower() in DESCRIPTIONS:
-        return random.choice(DESCRIPTIONS[job_type.lower()])
-    return random.choice(DESCRIPTIONS["default"])
-
-
-def _get_salary(job_type: Optional[str]) -> str:
-    key = (job_type or "").lower()
-    pool = SALARY_RANGES.get(key, SALARY_RANGES["default"])
-    return random.choice(pool)
-
-
-def _get_work_mode_label(work_mode: Optional[str], location: Optional[str]) -> str:
-    if work_mode and work_mode.lower() in ("remote", "hybrid", "onsite"):
-        return work_mode.title()
-    return random.choice(["Onsite", "Remote", "Hybrid"])
-
-
-def _pick_companies(query: str, job_type: Optional[str], count: int, seed: int) -> List[str]:
-    """
-    Pick companies relevant to the role/domain from the query.
-    The seed ensures the same search always returns the same companies.
-    """
-    q_lower = query.lower()
-    pool = None
-
-    # Match specific role keywords to company pools (longest match wins)
-    for key in sorted(COMPANY_POOLS.keys(), key=len, reverse=True):
-        if key in q_lower:
-            pool = COMPANY_POOLS[key]
-            break
-
-    # Fall back to job_type match
-    if not pool and job_type:
-        jt = job_type.lower()
-        pool = COMPANY_POOLS.get(jt)
-
-    # Final fallback
-    if not pool:
-        pool = COMPANY_POOLS["default"]
-
-    # Deterministic shuffle using query seed
-    rng = random.Random(seed)
-    shuffled = pool[:]
-    rng.shuffle(shuffled)
-
-    # If we need more companies than the pool has, extend with the tech descriptors
-    if len(shuffled) < count:
-        extra = GENERIC_TECH_DESCRIPTORS[:]
-
-        rng.shuffle(extra)
-        for c in extra:
-            if c not in shuffled:
-                shuffled.append(c)
-    return shuffled[:count]
-
-
-def _build_title(query: str, job_type: Optional[str]) -> str:
-    """Create a realistic job title from the query."""
-    q = query.strip().title()
-    jt = (job_type or "").lower()
-    if jt == "internship":
-        suffixes = ["Intern", "Trainee", "Summer Intern", "Industrial Trainee"]
-        return f"{q} {random.choice(suffixes)}"
-    if jt == "hackathon":
-        prefixes = ["HackIndia", "Smart India Hackathon", "Unstop Challenge", "DevSprint"]
-        return f"{random.choice(prefixes)} — {q} Track"
-    if jt == "contract":
-        return f"{q} (Contract)"
-    if jt == "part-time":
-        return f"{q} (Part-Time)"
-    return q
-
-
-def _generate_smart_listings(
+def _generate_portal_links(
     query: str,
     location: Optional[str],
-    job_type: Optional[str],
-    work_mode: Optional[str],
-    count: int = 8,
     platform_override: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Generate diverse, realistic-looking job listings:
-    - Company names are relevant to the search domain
-    - Descriptions are role-specific
-    - Salary/stipend is appropriate to the opportunity type
-    - Results are deterministic (same search = same results)
+    Generate direct search links to job platforms instead of generating fake data.
     """
-
-    # Daily-rotating seed: same search returns same results within a day,
-    # but refreshes each new day so users see fresh listings.
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    seed = hash(query.lower().strip() + (job_type or '') + (location or '') + today)
-
-
-    rng = random.Random(seed)
-    companies = _pick_companies(query, job_type, count, seed)
-    loc = location or rng.choice(CITIES)
-
-    platforms_shuffled = (platform_override if platform_override else PLATFORMS)[:]
-    rng.shuffle(platforms_shuffled)
-
-
-    # Offsets for posted_at so each listing appears to have been posted 1-10 days ago
-    day_offsets = list(range(1, 11))
-    rng.shuffle(day_offsets)
+    platforms_to_use = platform_override if platform_override else PLATFORMS
     results = []
-    for i in range(min(count, len(companies))):
-        platform = platforms_shuffled[i % len(platforms_shuffled)]
-        wm = _get_work_mode_label(work_mode, location)
-        job_location = "Remote" if wm == "Remote" else loc
-
-        posted_date = (datetime.utcnow() - timedelta(days=day_offsets[i % len(day_offsets)])).isoformat() + "Z"
+    
+    for i, platform in enumerate(platforms_to_use):
+        q = query.strip().title()
         
-        job_title = _build_title(query, job_type)
-        company_name = companies[i]
-
         results.append({
-            "id": f"smart-{abs(seed) % 99999:05d}-{i}",
-            "title": job_title,
-            "company": company_name,
-            "location": job_location,
-            "type": (job_type.title() if job_type else "Full-Time"),
-            "salary": _get_salary(job_type),
-            "apply_url": platform["url"](job_title, company_name, job_location),
+            "id": f"portal-{platform['name'].lower().replace(' ', '-')}-{i}",
+            "title": f"Search {q} on {platform['name']}",
+            "company": f"{platform['name']} Portal",
+            "location": "Online",
+            "type": "Direct Link",
+            "salary": None,
+            "apply_url": platform["url"](q, "", location or ""),
             "source": platform["name"],
-            "posted_at": posted_date,
-
-            "description_snippet": _get_description(query, job_type),
+            "posted_at": datetime.utcnow().isoformat() + "Z",
+            "description_snippet": f"We couldn't find exact API matches right now. Click 'Apply' to search directly on the {platform['name']} official portal for '{q}'. We've prepared the direct link for you.",
             "is_verified": True,
             "logo": None,
-            "ai_generated": True,
+            "ai_generated": False,
         })
 
     return results
@@ -342,6 +112,56 @@ def _get_source_name(url: str) -> str:
     return "External"
 
 
+# ── SerpApi Google Jobs search (for government jobs) ─────────────────────────
+async def _search_serpapi(query: str, location: str = "India", page: int = 0) -> List[Dict[str, Any]]:
+    """Search Google Jobs via SerpApi — best for Indian government jobs."""
+    if not SERPAPI_KEY:
+        return []
+    results = []
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                "https://serpapi.com/search.json",
+                params={
+                    "engine": "google_jobs",
+                    "q": query,
+                    "location": location,
+                    "hl": "en",
+                    "api_key": SERPAPI_KEY,
+                    "start": page * 10,
+                },
+            )
+            if response.status_code == 200:
+                data = response.json()
+                for job in data.get("jobs_results", []):
+                    # Pick the best apply link
+                    apply_options = job.get("apply_options", [])
+                    apply_url = apply_options[0]["link"] if apply_options else None
+                    if not apply_url:
+                        apply_url = f"https://www.google.com/search?q={quote_plus(job.get('title',''))}+{quote_plus(job.get('company_name',''))}"
+
+                    source_name = apply_options[0].get("title", "Google Jobs") if apply_options else "Google Jobs"
+
+                    results.append({
+                        "id": f"serp-{hash(job.get('title','') + job.get('company_name','')) % 99999}",
+                        "title": job.get("title", "Unknown Role"),
+                        "company": job.get("company_name", "Unknown"),
+                        "location": job.get("location", location),
+                        "type": job.get("detected_extensions", {}).get("schedule_type", "Full-Time"),
+                        "salary": job.get("detected_extensions", {}).get("salary", None),
+                        "apply_url": apply_url,
+                        "source": source_name,
+                        "posted_at": job.get("detected_extensions", {}).get("posted_at", ""),
+                        "description_snippet": (job.get("description") or "")[:300] + "...",
+                        "is_verified": _check_trusted(apply_url),
+                        "logo": job.get("thumbnail", None),
+                        "ai_generated": False,
+                    })
+    except Exception as e:
+        print(f"[job_search] SerpApi error: {e}")
+    return results
+
+
 # ── Main search function ──────────────────────────────────────────────────────
 async def search_external_jobs(
     query: str,
@@ -351,21 +171,24 @@ async def search_external_jobs(
     page: int = 1,
 ) -> Dict[str, Any]:
     """
-    Search for jobs from LinkedIn, Indeed, Internshala etc. via JSearch API.
-    Falls back to smart template-based realistic listings when JSearch is unavailable.
+    Hybrid job search:
+    - Government jobs → SerpApi (Google Jobs) for accurate Indian govt results
+    - Corporate jobs  → JSearch API (LinkedIn, Indeed, etc.)
+    - Final fallback  → Direct portal links (no fake data)
     """
     results = []
-    source_used = "smart_listings"
+    source_used = "portal_links"
 
-    # ── Government / bilingual query enrichment ────────────────────────────────
-    is_govt = (job_type or "").lower() == "government"
-    govt_keywords = "Sarkari Naukri Government PSU Public Sector"
+    # ── Detect government search ──────────────────────────────────────────────
+    is_govt = (
+        (job_type or "").lower() == "government"
+        or "government" in query.lower()
+        or "govt" in query.lower()
+        or "sarkari" in query.lower()
+    )
 
-    # Step 1: Build enriched search query
+    # ── Build search query ────────────────────────────────────────────────────
     search_query = query
-    if is_govt:
-        # Append bilingual government keywords so JSearch returns govt results
-        search_query = f"{search_query} {govt_keywords}"
     if location:
         search_query = f"{search_query} {location}"
     if job_type and not is_govt:
@@ -373,8 +196,16 @@ async def search_external_jobs(
     if work_mode:
         search_query = f"{search_query} {work_mode}"
 
-    # Step 2: Try JSearch API if key exists
-    if JSEARCH_API_KEY:
+    # ── ROUTE 1: Government jobs → SerpApi ────────────────────────────────────
+    if is_govt:
+        govt_query = f"{query} government India sarkari"
+        serp_results = await _search_serpapi(govt_query, location or "India", page - 1)
+        if serp_results:
+            results = serp_results
+            source_used = "serpapi_google_jobs"
+
+    # ── ROUTE 2: Corporate jobs → JSearch ─────────────────────────────────────
+    if not is_govt and not results and JSEARCH_API_KEY:
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.get(
@@ -418,22 +249,19 @@ async def search_external_jobs(
         except Exception as e:
             print(f"[job_search] JSearch API error: {e}")
 
-
-    # Step 3: Fall back to smart template listings ONLY if no results were found
+    # ── ROUTE 3: Final fallback → Direct portal links (honest, no fake data) ─
     if not results:
-        source_used = "smart_listings"
-
-        # For government jobs — use the government-specific platforms only
+        source_used = "portal_links"
         if is_govt:
             govt_platforms = [p for p in PLATFORMS if p["name"] in (
-                "NCS Gov", "Sarkari Result", "UPSC", "SSC", "IBPS", "Naukri Gov"
+                "NCS Gov", "Sarkari Result", "UPSC", "SSC", "IBPS", "Naukri Gov", "FreeJobAlert"
             )]
-            results = _generate_smart_listings(
-                query, location, job_type, work_mode,
-                count=6, platform_override=govt_platforms
-            )
+            results = _generate_portal_links(query, location, platform_override=govt_platforms)
         else:
-            results = _generate_smart_listings(query, location, job_type, work_mode)
+            corporate_platforms = [p for p in PLATFORMS if p["name"] not in (
+                "NCS Gov", "Sarkari Result", "UPSC", "SSC", "IBPS", "Naukri Gov", "FreeJobAlert"
+            )]
+            results = _generate_portal_links(query, location, platform_override=corporate_platforms)
 
     return {
         "query": query,
@@ -441,3 +269,4 @@ async def search_external_jobs(
         "total": len(results),
         "results": results,
     }
+
