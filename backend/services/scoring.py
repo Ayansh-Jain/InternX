@@ -246,10 +246,6 @@ def _calculate_keyword_score(data: Dict, target_role: str, feedback: List) -> in
             if keyword in all_text:
                 matched_keywords.add(keyword)
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     keyword_count = len(matched_keywords)
     if keyword_count >= 10:
         score = 25
@@ -262,20 +258,12 @@ def _calculate_keyword_score(data: Dict, target_role: str, feedback: List) -> in
     else:
         score = keyword_count * 2
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     if keyword_count < 5:
         feedback.append({
             "type": "improve",
             "message": f"Add more relevant keywords for '{target_role or 'your target role'}'. Found {keyword_count} keywords."
         })
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     return score
 
 
@@ -297,10 +285,6 @@ def _calculate_quantification(data: Dict, feedback: List) -> int:
 
     metrics_count = len(numbers)
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     if metrics_count >= 6:
         score = 20
     elif metrics_count >= 4:
@@ -310,20 +294,12 @@ def _calculate_quantification(data: Dict, feedback: List) -> int:
     else:
         score = metrics_count * 4
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     if metrics_count < 3:
         feedback.append({
             "type": "improve",
             "message": "Add quantified achievements (e.g., 'Increased sales by 25%', 'Managed team of 5')"
         })
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     return score
 
 
@@ -345,10 +321,6 @@ def _calculate_action_verbs(data: Dict, feedback: List) -> int:
 
     verb_count = len(found_verbs)
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     if verb_count >= 5:
         score = 10
     elif verb_count >= 3:
@@ -358,20 +330,12 @@ def _calculate_action_verbs(data: Dict, feedback: List) -> int:
     else:
         score = 0
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     if verb_count < 3:
         feedback.append({
             "type": "improve",
             "message": "Start bullet points with strong action verbs (Led, Developed, Achieved, Implemented)"
         })
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     return score
 
 

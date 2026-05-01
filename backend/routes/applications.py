@@ -12,11 +12,8 @@ from datetime import datetime
 from bson import ObjectId
 from typing import Optional
 import re
-<<<<<<< HEAD
 
 from services.applicant_ranker import get_ranker, STATUS_REWARDS
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
 
 from models.user import UserRole
 from models.application import (
@@ -30,7 +27,6 @@ router = APIRouter(prefix="/applications", tags=["Applications"])
 
 
 # ── Skill matching (normalized — mirrors logic in jobs.py) ────────────────────
-<<<<<<< HEAD
 
 def _normalize_skill(s: str) -> str:
     """Normalize a skill string for comparison."""
@@ -72,46 +68,6 @@ def calculate_match_percentage(user: dict, job: dict) -> int:
             )
         )
         return min(100, int((matched / len(job_skills_raw)) * 100))
-=======
-
-def _normalize_skill(s: str) -> str:
-    """Normalize a skill string for comparison."""
-    if not s:
-        return ""
-    clean = re.sub(r'[^a-zA-Z0-9+#.]', '', s.lower())
-    if clean.endswith('.') and not clean.endswith('.net'):
-        clean = clean[:-1]
-    return clean
-
-
-def calculate_match_percentage(user: dict, job: dict) -> int:
-    """
-    Calculate match % between user skills and job requirements using normalized matching.
-    Mirrors the implementation in jobs.py > calculate_match_details.
-    """
-    user_skills_raw = []
-    resume_data = user.get("profile", {}).get("resumeData")
-    if resume_data:
-        skills = resume_data.get("skills", {})
-        user_skills_raw.extend(skills.get("technical", []))
-        user_skills_raw.extend(skills.get("tools", []))
-
-    job_skills_raw = job.get("required_skills", [])
-
-    if not job_skills_raw:
-        return 75  # No requirements specified — default to 75%
-
-    matched = 0
-    for skill in job_skills_raw:
-        skill_norm = _normalize_skill(skill)
-        if any(
-            skill_norm in _normalize_skill(us) or _normalize_skill(us) in skill_norm
-            for us in user_skills_raw if us
-        ):
-            matched += 1
-
-    return min(100, int((matched / len(job_skills_raw)) * 100))
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
 
 
 # ── Helper: batch fetch by IDs ────────────────────────────────────────────────
@@ -177,7 +133,6 @@ async def apply_to_job(
             detail="You have already applied to this job"
         )
 
-<<<<<<< HEAD
     # ── RL Ranker: score + capture feature vector for later online update ──
     try:
         ranker = get_ranker()
@@ -188,9 +143,6 @@ async def apply_to_job(
     except Exception:
         match_pct = calculate_match_percentage(current_user, job)
         resume_features = []
-=======
-    match_pct = calculate_match_percentage(current_user, job)
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
 
     now = datetime.utcnow()
     
@@ -203,15 +155,10 @@ async def apply_to_job(
         "provider_id": job["provider_id"],
         "status": ApplicationStatus.PENDING.value,
         "match_percentage": match_pct,
-<<<<<<< HEAD
         "resume_snapshot": resume_snapshot,
         "resume_features": resume_features,   # 8-dim vector for RL update
         "cover_letter": cover_letter,
         "application_bio": application_data.application_bio,
-=======
-        "resume_snapshot": current_user.get("profile", {}).get("resumeData"),
-        "cover_letter": cover_letter,
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
         "created_at": now,
         "updated_at": now
     }
@@ -238,11 +185,8 @@ async def apply_to_job(
         status=ApplicationStatus.PENDING,
         match_percentage=match_pct,
         cover_letter=cover_letter,
-<<<<<<< HEAD
         resume_snapshot=resume_snapshot,
         application_bio=application_data.application_bio,
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
         created_at=now
     )
 
@@ -392,7 +336,6 @@ async def update_application_status(
         }}
     )
 
-<<<<<<< HEAD
     # ── Online REINFORCE update ────────────────────────────────────────────
     # Only fire when the provider gives a meaningful signal (accept/reject).
     new_status = status_update.status.value
@@ -410,8 +353,6 @@ async def update_application_status(
                 )
         # else: old application before RL was added — no features stored, skip
 
-=======
->>>>>>> 1a7a052f91dd9364610d3dc9f8a833410e0ac621
     return {"message": f"Application status updated to {status_update.status.value}"}
 
 
