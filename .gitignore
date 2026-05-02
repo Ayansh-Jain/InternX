@@ -38,3 +38,4 @@ backend/test_output.txt
 *.sln
 *.sw?
 
+backend/.env
