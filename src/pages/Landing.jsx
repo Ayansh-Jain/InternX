@@ -8,6 +8,7 @@ import {
     Zap,
     Download,
     ArrowRight,
+    UserPen,
     Star,
     Users,
     CheckCircle2
@@ -360,13 +361,8 @@ const itemVariants = {
 const features = [
     {
         icon: <FileText size={28} />,
-        title: 'Smart Form Builder',
+        title: 'Smart Resume Builder',
         description: 'Fill in your details step-by-step with an intuitive guided form. No design skills needed.',
-    },
-    {
-        icon: <Target size={28} />,
-        title: 'ATS Optimization',
-        description: 'Get resumes that pass Applicant Tracking Systems with keyword-optimized content.',
     },
     {
         icon: <BarChart3 size={28} />,
@@ -388,6 +384,12 @@ const features = [
         title: 'PDF Export',
         description: 'Download high-quality, print-ready PDFs that look great on any device.',
     },
+    {
+    icon: <UserPen size={28} />,
+    title: 'AI Bio Generation',
+    description: 'Automatically generate professional bios for job seekers, tailored to highlight skills, experience, and career goals for job applications.'
+}
+
 ]
 
 const scoringCriteria = [
@@ -478,20 +480,7 @@ function Landing() {
                             </AnimatedButton>
                         </motion.div>
 
-                        <motion.div style={styles.heroStats} variants={itemVariants}>
-                            <div style={styles.stat}>
-                                <span style={styles.statNumber}>10K+</span>
-                                <span style={styles.statLabel}>Resumes Created</span>
-                            </div>
-                            <div style={styles.stat}>
-                                <span style={styles.statNumber}>95%</span>
-                                <span style={styles.statLabel}>ATS Pass Rate</span>
-                            </div>
-                            <div style={styles.stat}>
-                                <span style={styles.statNumber}>4.9★</span>
-                                <span style={styles.statLabel}>User Rating</span>
-                            </div>
-                        </motion.div>
+                        
                     </motion.div>
 
                     <motion.div

@@ -232,8 +232,9 @@ function Builder() {
             feedback.push({ type: 'warning', message: 'Complete all sections for a better score' })
         }
 
-        // Keywords (25 points) - simplified check
+        // Keywords (25 points) - more granular
         const technicalSkillsCount = data.skills.technical.length
+
         const keywordScore = Math.min(25, technicalSkillsCount * 5)
         breakdown.keywords = keywordScore
         score += keywordScore
@@ -242,6 +243,7 @@ function Builder() {
             feedback.push({ type: 'improve', message: 'Add more technical skills relevant to your target role' })
         }
 
+
         // Impact & Quantification (25 points)
         const expText = data.experience.map(e => (e.responsibilities || []).join(' ')).join(' ')
         const numberCount = (expText.match(/\d+/g) || []).length
@@ -249,9 +251,11 @@ function Builder() {
         breakdown.impact = impactScore
         score += impactScore
 
+
         if (numberCount < 3) {
             feedback.push({ type: 'improve', message: 'Add metrics to quantify your achievements' })
         }
+
 
         // Readability & Action Verbs (25 points)
         const actionVerbs = ['led', 'developed', 'created', 'managed', 'implemented', 'designed', 'built', 'increased', 'reduced', 'achieved']
@@ -261,7 +265,7 @@ function Builder() {
         breakdown.readability = readScore
         score += readScore
 
-        if (score > 70) {
+        if (finalScore >= 70) {
             feedback.unshift({ type: 'success', message: 'Great job! Your resume is well-optimized' })
         }
 

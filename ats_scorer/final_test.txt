@@ -1,0 +1,37 @@
+
+================ ATS Scoring Example ================
+Job Description Preview: We are looking for a Backend Software Engineer. 
+    Requirements:
+    - 3+ years of experience with...
+Resume Preview: John Doe
+    Backend Developer
+    
+    SKILLS
+    Python, Django, FastAPI, PostgreSQL, MongoDB, Git...
+
+Evaluating Resume against JD...
+
+{
+  "ats_score": 63.1,
+  "skill_match": 0.56,
+  "semantic_match": 0.69,
+  "missing_skills": [
+    "sql",
+    "aws",
+    "agile",
+    "github"
+  ],
+  "matched_skills": [
+    "git",
+    "docker",
+    "fastapi",
+    "python",
+    "postgresql"
+  ],
+  "suggestions": [
+    "Consider adding these missing skills: sql, aws, agile, github",
+    "Your resume lacks many core skills mentioned in the job description."
+  ]
+}
+=====================================================
+

@@ -3,15 +3,18 @@
  */
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Briefcase, Plus, Edit, Trash2, Users, Eye, Clock,
     MapPin, DollarSign, Calendar, LogOut, ChevronRight,
-    Building, AlertCircle
+    Building, AlertCircle, FileText, User, Mail, Phone,
+    Linkedin, Github, ExternalLink, CheckCircle, XCircle,
+    ChevronDown, ChevronUp, X, Star, Award
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, profileAPI } from '../../services/api';
+import { jobsAPI, applicationsAPI, profileAPI } from '../../services/api';
 import { useNavigate, Link } from 'react-router-dom';
+import CustomizedResumePreview from '../../components/CustomizedResumePreview';
 
 const styles = {
     dashboard: {
@@ -359,8 +362,18 @@ function ProviderDashboard() {
     });
     const [submitting, setSubmitting] = useState(false);
 
+    // Applications Received state
+    const [applications, setApplications] = useState([]);
+    const [appsLoading, setAppsLoading] = useState(false);
+    const [selectedApp, setSelectedApp] = useState(null);
+    const [appFilter, setAppFilter] = useState('all');
+    const [expandedResumeId, setExpandedResumeId] = useState(null);
+    const [updatingStatus, setUpdatingStatus] = useState(null);
+    const [viewingResume, setViewingResume] = useState(null);
+
     useEffect(() => {
         loadJobs();
+        loadApplications();
     }, []);
 
     const loadJobs = async () => {
@@ -374,6 +387,70 @@ function ProviderDashboard() {
             setLoading(false);
         }
     };
+
+    const loadApplications = async () => {
+        setAppsLoading(true);
+        try {
+            const response = await applicationsAPI.list({ limit: 100 });
+            // Now enrich each application with full applicant details
+            const apps = response.data.applications || [];
+
+            // For each application, fetch applicants from the job endpoint for richer data
+            const enrichedApps = [];
+            const jobApplicantsCache = {};
+
+            for (const app of apps) {
+                try {
+                    if (!jobApplicantsCache[app.job_id]) {
+                        const res = await jobsAPI.getApplicants(app.job_id, { limit: 100 });
+                        const applicantsMap = {};
+                        for (const a of (res.data.applicants || [])) {
+                            applicantsMap[a.id] = a;
+                        }
+                        jobApplicantsCache[app.job_id] = applicantsMap;
+                    }
+                    const enriched = jobApplicantsCache[app.job_id]?.[app.id];
+                    enrichedApps.push({
+                        ...app,
+                        ...(enriched || {}),
+                        // Keep original app fields as priority
+                        id: app.id,
+                        job_title: app.job_title,
+                        job_company: app.job_company,
+                    });
+                } catch {
+                    enrichedApps.push(app);
+                }
+            }
+
+            setApplications(enrichedApps);
+        } catch (err) {
+            console.error('Failed to load applications:', err);
+        } finally {
+            setAppsLoading(false);
+        }
+    };
+
+    const handleUpdateAppStatus = async (appId, newStatus) => {
+        setUpdatingStatus(appId);
+        try {
+            await applicationsAPI.updateStatus(appId, newStatus);
+            setApplications(prev => prev.map(a =>
+                a.id === appId ? { ...a, status: newStatus } : a
+            ));
+            if (selectedApp?.id === appId) {
+                setSelectedApp(prev => ({ ...prev, status: newStatus }));
+            }
+        } catch (err) {
+            console.error('Failed to update status:', err);
+        } finally {
+            setUpdatingStatus(null);
+        }
+    };
+
+    const filteredApplications = appFilter === 'all'
+        ? applications
+        : applications.filter(a => a.status === appFilter);
 
     const handleLogout = async () => {
         await logout();
@@ -498,6 +575,72 @@ function ProviderDashboard() {
     const totalViews = jobs.reduce((sum, j) => sum + (j.stats?.views || 0), 0);
     const totalApplications = jobs.reduce((sum, j) => sum + (j.stats?.applications || 0), 0);
     const activeJobs = jobs.filter(j => j.status === 'active').length;
+
+    const getStatusColor = (st) => {
+        switch (st) {
+            case 'pending': return { bg: '#FEF3C7', color: '#D97706', label: 'Pending' };
+            case 'reviewed': return { bg: '#DBEAFE', color: '#2563EB', label: 'Reviewed' };
+            case 'shortlisted': return { bg: '#D1FAE5', color: '#059669', label: 'Shortlisted' };
+            case 'rejected': return { bg: '#FEE2E2', color: '#DC2626', label: 'Rejected' };
+            case 'withdrawn': return { bg: '#F3F4F6', color: '#6B7280', label: 'Withdrawn' };
+            default: return { bg: '#F3F4F6', color: '#6B7280', label: st };
+        }
+    };
+
+    const renderResumeSection = (resume) => {
+        if (!resume) return <p style={{ color: '#9CA3AF', fontStyle: 'italic' }}>No resume data available</p>;
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {resume.summary && (
+                    <div>
+                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '4px' }}>Summary</div>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: '1.5' }}>{resume.summary}</p>
+                    </div>
+                )}
+                {resume.skills && (
+                    <div>
+                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '6px' }}>Skills</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {[...(resume.skills?.technical || []), ...(resume.skills?.tools || [])].map((s, i) => (
+                                <span key={i} style={{
+                                    padding: '4px 10px', borderRadius: '20px', fontSize: '12px',
+                                    background: '#E0E7FF', color: '#4338CA', fontWeight: '500'
+                                }}>{s}</span>
+                            ))}
+                            {(resume.skills?.soft || []).map((s, i) => (
+                                <span key={`soft-${i}`} style={{
+                                    padding: '4px 10px', borderRadius: '20px', fontSize: '12px',
+                                    background: '#FCE7F3', color: '#BE185D', fontWeight: '500'
+                                }}>{s}</span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {resume.experience && resume.experience.length > 0 && (
+                    <div>
+                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '6px' }}>Experience</div>
+                        {resume.experience.map((exp, i) => (
+                            <div key={i} style={{ padding: '8px 0', borderBottom: i < resume.experience.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                                <div style={{ fontWeight: '600', fontSize: '14px', color: '#374151' }}>{exp.title || exp.role}</div>
+                                <div style={{ fontSize: '13px', color: '#6B7280' }}>{exp.company} {exp.duration ? `· ${exp.duration}` : ''}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {resume.education && resume.education.length > 0 && (
+                    <div>
+                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '6px' }}>Education</div>
+                        {resume.education.map((edu, i) => (
+                            <div key={i} style={{ padding: '4px 0' }}>
+                                <div style={{ fontWeight: '600', fontSize: '14px', color: '#374151' }}>{edu.degree}</div>
+                                <div style={{ fontSize: '13px', color: '#6B7280' }}>{edu.institution} {edu.year ? `· ${edu.year}` : ''}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div style={styles.dashboard}>
@@ -640,6 +783,261 @@ function ProviderDashboard() {
                                 </div>
                             </motion.div>
                         ))
+                    )}
+                </div>
+
+                {/* ═══ Applications Received Section ═══ */}
+                <div style={styles.section}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h2 style={styles.sectionTitle}>
+                            <FileText size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} />
+                            Applications Received
+                        </h2>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            {['all', 'pending', 'shortlisted', 'rejected'].map(f => (
+                                <button
+                                    key={f}
+                                    onClick={() => setAppFilter(f)}
+                                    style={{
+                                        padding: '6px 14px', borderRadius: '20px', border: 'none',
+                                        fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                                        background: appFilter === f ? '#3A4B41' : '#F3F4F6',
+                                        color: appFilter === f ? '#E6CFA6' : '#6B7280',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {appsLoading ? (
+                        <div style={styles.loading}>
+                            <div style={styles.spinner} />
+                        </div>
+                    ) : filteredApplications.length === 0 ? (
+                        <div style={styles.emptyState}>
+                            <div style={styles.emptyIcon}>
+                                <FileText size={28} color="#9CA3AF" />
+                            </div>
+                            <h3 style={{ marginBottom: '8px', color: '#374151' }}>No applications {appFilter !== 'all' ? `with status "${appFilter}"` : 'received yet'}</h3>
+                            <p>Applications from job seekers will appear here.</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {filteredApplications.map(app => {
+                                const statusInfo = getStatusColor(app.status);
+                                const isExpanded = expandedResumeId === app.id;
+                                return (
+                                    <motion.div
+                                        key={app.id}
+                                        style={{
+                                            border: '1px solid #E5E7EB',
+                                            borderRadius: '14px',
+                                            overflow: 'hidden',
+                                            background: 'white',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                        whileHover={{ borderColor: '#3A4B41', boxShadow: '0 4px 12px rgba(58,75,65,0.08)' }}
+                                    >
+                                        {/* Application Header */}
+                                        <div style={{
+                                            padding: '16px 20px',
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            cursor: 'pointer'
+                                        }}
+                                            onClick={() => setExpandedResumeId(isExpanded ? null : app.id)}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
+                                                <div style={{
+                                                    width: '44px', height: '44px', borderRadius: '12px',
+                                                    background: 'linear-gradient(135deg, #3A4B41 0%, #4A5D52 100%)',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    color: '#E6CFA6', fontWeight: '700', fontSize: '16px', flexShrink: 0
+                                                }}>
+                                                    {(app.applicant_name || 'U').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontWeight: '600', fontSize: '15px', color: '#1F2937' }}>
+                                                        {app.applicant_name || 'Unknown Applicant'}
+                                                    </div>
+                                                    <div style={{ fontSize: '13px', color: '#6B7280', display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <Briefcase size={12} /> {app.job_title || 'Job'}
+                                                        </span>
+                                                        {app.applicant_email && (
+                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                <Mail size={12} /> {app.applicant_email}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                                                <div style={{
+                                                    padding: '4px 10px', borderRadius: '8px', fontSize: '13px', fontWeight: '700',
+                                                    background: app.match_percentage >= 70 ? '#D1FAE5' : app.match_percentage >= 40 ? '#FEF3C7' : '#FEE2E2',
+                                                    color: app.match_percentage >= 70 ? '#059669' : app.match_percentage >= 40 ? '#D97706' : '#DC2626'
+                                                }}>
+                                                    {app.match_percentage}% Match
+                                                </div>
+                                                <span style={{
+                                                    ...styles.statusBadge,
+                                                    background: statusInfo.bg,
+                                                    color: statusInfo.color
+                                                }}>
+                                                    {statusInfo.label}
+                                                </span>
+                                                <div style={{ fontSize: '12px', color: '#9CA3AF', minWidth: '70px', textAlign: 'right' }}>
+                                                    {new Date(app.created_at).toLocaleDateString()}
+                                                </div>
+                                                {isExpanded ? <ChevronUp size={18} color="#6B7280" /> : <ChevronDown size={18} color="#6B7280" />}
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded Details */}
+                                        <AnimatePresence>
+                                            {isExpanded && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.3 }}
+                                                    style={{ overflow: 'hidden' }}
+                                                >
+                                                    <div style={{
+                                                        padding: '0 20px 20px',
+                                                        borderTop: '1px solid #F3F4F6'
+                                                    }}>
+                                                        {/* Bio Section */}
+                                                        {app.application_bio && (
+                                                            <div style={{
+                                                                margin: '16px 0',
+                                                                padding: '14px 16px',
+                                                                background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+                                                                borderRadius: '12px',
+                                                                borderLeft: '4px solid #3A4B41'
+                                                            }}>
+                                                                <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <User size={14} /> AI-Tailored Application Bio
+                                                                </div>
+                                                                <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: '1.6' }}>
+                                                                    {app.application_bio}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Contact Info Row */}
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', margin: '12px 0' }}>
+                                                            {app.applicant_phone && (
+                                                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#6B7280', background: '#F9FAFB', padding: '6px 12px', borderRadius: '8px' }}>
+                                                                    <Phone size={14} /> {app.applicant_phone}
+                                                                </span>
+                                                            )}
+                                                            {app.applicant_location && (
+                                                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#6B7280', background: '#F9FAFB', padding: '6px 12px', borderRadius: '8px' }}>
+                                                                    <MapPin size={14} /> {app.applicant_location}
+                                                                </span>
+                                                            )}
+                                                            {app.applicant_linkedin && (
+                                                                <a href={app.applicant_linkedin} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#2563EB', background: '#EFF6FF', padding: '6px 12px', borderRadius: '8px', textDecoration: 'none' }}>
+                                                                    <Linkedin size={14} /> LinkedIn
+                                                                </a>
+                                                            )}
+                                                            {app.applicant_github && (
+                                                                <a href={app.applicant_github} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#374151', background: '#F3F4F6', padding: '6px 12px', borderRadius: '8px', textDecoration: 'none' }}>
+                                                                    <Github size={14} /> GitHub
+                                                                </a>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Cover Letter */}
+                                                        {app.cover_letter && (
+                                                            <div style={{ margin: '12px 0', padding: '14px 16px', background: '#FFFBEB', borderRadius: '12px', borderLeft: '4px solid #D97706' }}>
+                                                                <div style={{ fontSize: '12px', fontWeight: '600', color: '#92400E', textTransform: 'uppercase', marginBottom: '6px' }}>Cover Letter</div>
+                                                                <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                                                                    {app.cover_letter}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Resume Data */}
+                                                        <div style={{ margin: '12px 0', padding: '14px 16px', background: '#F0FDF4', borderRadius: '12px', borderLeft: '4px solid #059669' }}>
+                                                            <div style={{ fontSize: '12px', fontWeight: '600', color: '#065F46', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <FileText size={14} /> Resume Details
+                                                            </div>
+                                                            {renderResumeSection(app.resume_snapshot)}
+                                                            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                                                                <button
+                                                                    onClick={() => setViewingResume(app.resume_snapshot)}
+                                                                    style={{
+                                                                        background: '#059669', color: 'white', border: 'none',
+                                                                        padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                                                    }}
+                                                                >
+                                                                    <Eye size={14} /> View Full Resume
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Action Buttons */}
+                                                        <div style={{ display: 'flex', gap: '10px', marginTop: '16px', justifyContent: 'flex-end' }}>
+                                                            {app.status !== 'shortlisted' && (
+                                                                <motion.button
+                                                                    whileHover={{ scale: 1.03 }}
+                                                                    whileTap={{ scale: 0.97 }}
+                                                                    style={{
+                                                                        ...styles.actionBtn,
+                                                                        background: '#D1FAE5', color: '#059669',
+                                                                        opacity: updatingStatus === app.id ? 0.6 : 1
+                                                                    }}
+                                                                    disabled={updatingStatus === app.id}
+                                                                    onClick={(e) => { e.stopPropagation(); handleUpdateAppStatus(app.id, 'shortlisted'); }}
+                                                                >
+                                                                    <CheckCircle size={14} /> Shortlist
+                                                                </motion.button>
+                                                            )}
+                                                            {app.status !== 'rejected' && (
+                                                                <motion.button
+                                                                    whileHover={{ scale: 1.03 }}
+                                                                    whileTap={{ scale: 0.97 }}
+                                                                    style={{
+                                                                        ...styles.actionBtn,
+                                                                        background: '#FEE2E2', color: '#DC2626',
+                                                                        opacity: updatingStatus === app.id ? 0.6 : 1
+                                                                    }}
+                                                                    disabled={updatingStatus === app.id}
+                                                                    onClick={(e) => { e.stopPropagation(); handleUpdateAppStatus(app.id, 'rejected'); }}
+                                                                >
+                                                                    <XCircle size={14} /> Reject
+                                                                </motion.button>
+                                                            )}
+                                                            {app.status !== 'reviewed' && app.status === 'pending' && (
+                                                                <motion.button
+                                                                    whileHover={{ scale: 1.03 }}
+                                                                    whileTap={{ scale: 0.97 }}
+                                                                    style={{
+                                                                        ...styles.actionBtn,
+                                                                        background: '#DBEAFE', color: '#2563EB',
+                                                                        opacity: updatingStatus === app.id ? 0.6 : 1
+                                                                    }}
+                                                                    disabled={updatingStatus === app.id}
+                                                                    onClick={(e) => { e.stopPropagation(); handleUpdateAppStatus(app.id, 'reviewed'); }}
+                                                                >
+                                                                    <Eye size={14} /> Mark Reviewed
+                                                                </motion.button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
             </div>
@@ -849,6 +1247,63 @@ function ProviderDashboard() {
                             >
                                 Close
                             </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Resume Viewer Modal */}
+            {viewingResume && (
+                <div style={{
+                    ...styles.modal,
+                    background: 'rgba(0,0,0,0.8)'
+                }} onClick={() => setViewingResume(null)}>
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        style={{
+                            ...styles.modalContent,
+                            maxWidth: '900px',
+                            padding: '0',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={{
+                            padding: '16px 24px',
+                            background: '#F9FAFB',
+                            borderBottom: '1px solid #E5E7EB',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <h3 style={{ margin: 0, fontSize: '18px', color: '#1F2937' }}>
+                                Resume Preview
+                            </h3>
+                            <button
+                                onClick={() => setViewingResume(null)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280' }}
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div style={{
+                            padding: '24px',
+                            overflowY: 'auto',
+                            maxHeight: 'calc(90vh - 120px)',
+                            background: '#F3F4F6'
+                        }}>
+                            <div style={{
+                                maxWidth: '800px',
+                                margin: '0 auto',
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                                borderRadius: '4px',
+                                overflow: 'hidden'
+                            }}>
+                                <CustomizedResumePreview data={viewingResume} rawData={viewingResume} />
+                            </div>
                         </div>
                     </motion.div>
                 </div>

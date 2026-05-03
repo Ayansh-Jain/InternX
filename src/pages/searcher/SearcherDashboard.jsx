@@ -2,16 +2,17 @@
  * Job Searcher Dashboard - For candidates to browse jobs, track applications, and view scores.
  */
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, Briefcase, MapPin, Clock, DollarSign, Bookmark, BookmarkCheck,
     Send, TrendingUp, Target, Award, ChevronRight, Filter, LogOut,
     CheckCircle, XCircle, Clock as ClockIcon, Eye, Building, X,
-    Check, ArrowRight, Wand2
+    Check, ArrowRight, Wand2, FileText, Download, Upload
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, applicationsAPI, profileAPI, searchAPI } from '../../services/api';
+import { jobsAPI, applicationsAPI, profileAPI, searchAPI, recommendationsAPI, externalJobsAPI, resumeAPI } from '../../services/api';
+import CustomizedResumePreview from '../../components/CustomizedResumePreview';
 import { useNavigate, Link } from 'react-router-dom';
 
 const styles = {
@@ -334,17 +335,20 @@ const styles = {
         right: 0,
         bottom: 0,
         background: 'rgba(0,0,0,0.5)',
+        zIndex: 200,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 200,
     },
     modalContent: {
         background: 'white',
         borderRadius: '16px',
         padding: '32px',
-        maxWidth: '500px',
+        maxWidth: '600px',
         width: '90%',
+        maxHeight: '88vh',
+        overflowY: 'scroll',
+        position: 'relative',
     },
     filterSidebar: {
         position: 'fixed',
@@ -410,8 +414,10 @@ function SearcherDashboard() {
     const [activeTab, setActiveTab] = useState('browse');
     const [loading, setLoading] = useState(true);
     const [jobs, setJobs] = useState([]);
+    const [recommendedJobs, setRecommendedJobs] = useState([]);
     const [applications, setApplications] = useState([]);
     const [savedJobs, setSavedJobs] = useState([]);
+    const [likedJobs, setLikedJobs] = useState(new Set());
     const [score, setScore] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState({
@@ -428,6 +434,30 @@ function SearcherDashboard() {
     const [generatedBio, setGeneratedBio] = useState('');
     const [isGeneratingBio, setIsGeneratingBio] = useState(false);
     const [bioError, setBioError] = useState('');
+    const [showSuccess, setShowSuccess] = useState(false);
+    
+    const [customizedResume, setCustomizedResume] = useState(null);
+    const [isCustomizingResume, setIsCustomizingResume] = useState(false);
+    const [customizeError, setCustomizeError] = useState('');
+    
+    // Resume Selection State
+    const [resumeSelection, setResumeSelection] = useState('original');
+    const [customResumeFile, setCustomResumeFile] = useState(null);
+    const [isSubmittingApp, setIsSubmittingApp] = useState(false);
+
+    // Reference for the scrollable modal container
+    const modalRef = useRef(null);
+
+    useEffect(() => {
+        if (customizedResume && modalRef.current) {
+            setTimeout(() => {
+                modalRef.current.scrollTo({ 
+                    top: modalRef.current.scrollHeight, 
+                    behavior: 'smooth' 
+                });
+            }, 500);
+        }
+    }, [customizedResume]);
 
     // AI Web Search State
     const [webResults, setWebResults] = useState([]);
@@ -435,10 +465,32 @@ function SearcherDashboard() {
     const [webError, setWebError] = useState('');
     const [showWebResults, setShowWebResults] = useState(false);
     const [webQuery, setWebQuery] = useState('');
+    const [webSavedSet, setWebSavedSet] = useState(new Set());
+    const [webAppliedSet, setWebAppliedSet] = useState(new Set());
+    const [webActionLoading, setWebActionLoading] = useState(new Set());
+    // Saved External tab
+    const [externalJobs, setExternalJobs] = useState([]);
+    const [externalLoading, setExternalLoading] = useState(false);
 
     useEffect(() => {
         loadData();
+        if (activeTab === 'saved-external') loadExternalJobs();
     }, [activeTab]);
+
+    // Pre-load saved/applied external job IDs on mount for badge persistence
+    useEffect(() => {
+        const preloadExternal = async () => {
+            try {
+                const res = await externalJobsAPI.list('all');
+                const jobs = res.data.jobs || [];
+                setWebSavedSet(new Set(jobs.filter(j => j.saved).map(j => j.ext_id)));
+                setWebAppliedSet(new Set(jobs.filter(j => j.applied).map(j => j.ext_id)));
+            } catch (e) {
+                console.warn('Could not pre-load external job states:', e);
+            }
+        };
+        preloadExternal();
+    }, []);
 
     // Debounce search
     useEffect(() => {
@@ -472,11 +524,62 @@ function SearcherDashboard() {
             setJobs(jobsRes.data.jobs);
             setApplications(appsRes.data.applications);
             setScore(scoreRes.data);
+
+            if (activeTab === 'for-you') {
+                 const recsRes = await recommendationsAPI.getFeed({ limit: 20 });
+                 setRecommendedJobs(recsRes.data.jobs || []);
+            }
         } catch (err) {
             console.error('Failed to load data:', err);
         } finally {
             setLoading(false);
         }
+    };
+
+    // Load saved/applied external jobs
+    const loadExternalJobs = async () => {
+        setExternalLoading(true);
+        try {
+            const res = await externalJobsAPI.list('all');
+            setExternalJobs(res.data.jobs || []);
+        } catch (e) { console.error('Failed to load external jobs', e); }
+        finally { setExternalLoading(false); }
+    };
+
+    const handleInteraction = async (jobId, action) => {
+        try {
+            await recommendationsAPI.interact({
+                user_id: user.id || user._id, 
+                job_id: jobId,
+                action: action
+            });
+            // If they liked or applied, refresh the 'for-you' feed in the background to show new recs
+            if (action === 'like' || action === 'apply') {
+                recommendationsAPI.getFeed({ limit: 20 }).then(res => setRecommendedJobs(res.data.jobs || []));
+            }
+        } catch (err) {
+            console.error(`Failed to log ${action} interaction:`, err);
+        }
+    };
+
+    const handleJobClick = (jobId) => {
+        handleInteraction(jobId, 'click');
+    };
+
+    const toggleLike = (e, jobId) => {
+        e.stopPropagation(); // prevent triggering job click
+        setLikedJobs(prev => {
+            const next = new Set(prev);
+            if (next.has(jobId)) {
+                next.delete(jobId);
+                // Depending on requirements, we might not send an API call for 'unlike', 
+                // but we definitely want to log 'like'.
+            } else {
+                next.add(jobId);
+                handleInteraction(jobId, 'like');
+            }
+            return next;
+        });
     };
 
     const handleFilterChange = (key, value) => {
@@ -505,6 +608,9 @@ function SearcherDashboard() {
         setShowWebResults(true);
         setWebQuery(query);
         setWebResults([]);
+        // Reset action state for new search
+        setWebSavedSet(new Set());
+        setWebAppliedSet(new Set());
         try {
             const params = { q: query };
             if (filters.location) params.location = filters.location;
@@ -518,26 +624,125 @@ function SearcherDashboard() {
         }
     };
 
+    const setWebActionLoad = (id, on) => setWebActionLoading(prev => {
+        const n = new Set(prev); on ? n.add(id) : n.delete(id); return n;
+    });
+
+    const toExtPayload = (r) => ({
+        ext_id: r.id || `${r.source}-${r.title}`,
+        title: r.title, company: r.company, location: r.location,
+        job_type: r.type, salary: r.salary, source: r.source,
+        apply_url: r.apply_url, description_snippet: r.description_snippet,
+        is_verified: r.is_verified || false,
+    });
+
+    // Use same ext_id formula as toExtPayload so Set keys match DB values
+    const getWebExtId = (r) => r.id || `${r.source}-${r.title}`;
+
+    const handleWebSave = async (r) => {
+        const id = getWebExtId(r);
+        setWebActionLoad(id, true);
+        try {
+            if (webSavedSet.has(id)) {
+                await externalJobsAPI.unsave(id);
+                setWebSavedSet(prev => { const n = new Set(prev); n.delete(id); return n; });
+            } else {
+                await externalJobsAPI.save(toExtPayload(r));
+                setWebSavedSet(prev => new Set([...prev, id]));
+            }
+        } catch (e) { console.error(e); } finally { setWebActionLoad(id, false); }
+    };
+
+    const handleWebMarkApplied = async (r) => {
+        const id = getWebExtId(r);
+        setWebActionLoad(id, true);
+        try {
+            if (webAppliedSet.has(id)) {
+                await externalJobsAPI.unmarkApplied(id);
+                setWebAppliedSet(prev => { const n = new Set(prev); n.delete(id); return n; });
+            } else {
+                await externalJobsAPI.markApplied(toExtPayload(r));
+                setWebAppliedSet(prev => new Set([...prev, id]));
+            }
+        } catch (e) { console.error(e); } finally { setWebActionLoad(id, false); }
+    };
+
     const handleLogout = async () => {
         await logout();
         navigate('/signin');
     };
 
-    const handleApply = async (jobId) => {
+    const handleSubmitApplication = async () => {
+        if (!applyingTo) return;
+        setIsSubmittingApp(true);
         try {
+            let finalCustomizedResume = null;
+            
+            if (resumeSelection === 'tailored') {
+                // Merge tailored sections (experience, projects) with original rawData (personal, education, skills)
+                finalCustomizedResume = {
+                    ...(customizedResume?.rawData || {}),
+                    ...(customizedResume?.data || {})
+                };
+            } else if (resumeSelection === 'custom' && customResumeFile) {
+                const formData = new FormData();
+                formData.append('file', customResumeFile);
+                const parseRes = await resumeAPI.parse(formData);
+                if (parseRes.data.success) {
+                    finalCustomizedResume = parseRes.data.data;
+                } else {
+                    throw new Error("Failed to parse custom resume");
+                }
+            }
+
             await applicationsAPI.apply({ 
-                job_id: jobId,
-                // Even though the backend might not currently save the bio in the Application model,
-                // we send it here so it can be added to their system later, or attached to their profile.
-                bio: generatedBio || undefined
+                job_id: applyingTo.id || applyingTo._id,
+                customized_resume: finalCustomizedResume,
+                application_bio: generatedBio || undefined
             });
+            
             setApplyingTo(null);
+            setCustomizedResume(null);
+            setCustomizeError('');
             setGeneratedBio('');
-            await loadData();
-            alert('Application submitted successfully!');
+            setResumeSelection('original');
+            setCustomResumeFile(null);
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 3000);
+            loadData();
         } catch (err) {
-            alert(err.response?.data?.detail || 'Failed to apply');
+            console.error('Failed to apply:', err);
+            const errorDetail = err.response?.data?.detail;
+            let errorMessage = 'Failed to submit application';
+            
+            if (typeof errorDetail === 'string') {
+                errorMessage = errorDetail;
+            } else if (Array.isArray(errorDetail)) {
+                errorMessage = errorDetail.map(d => `${d.loc.join('.')}: ${d.msg}`).join('\n');
+            } else if (errorDetail && typeof errorDetail === 'object') {
+                errorMessage = JSON.stringify(errorDetail);
+            } else {
+                errorMessage = err.message || errorMessage;
+            }
+            
+            alert(errorMessage);
+        } finally {
+            setIsSubmittingApp(false);
         }
+    };
+
+    const handleDownloadPDF = async () => {
+        const element = document.getElementById('resume-preview');
+        if (!element) return;
+        const html2pdf = (await import('html2pdf.js')).default;
+        const opt = {
+            margin: [10, 10],
+            filename: 'Tailored_Resume.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
     };
     
     const handleGenerateBio = async () => {
@@ -572,6 +777,38 @@ function SearcherDashboard() {
             setBioError(err.response?.data?.detail || 'Failed to generate AI Bio. Please check your API configuration or try again.');
         } finally {
             setIsGeneratingBio(false);
+        }
+    };
+
+    const handleGenerateCustomizedResume = async () => {
+        if (!applyingTo) return;
+        setIsCustomizingResume(true);
+        setCustomizeError('');
+        try {
+            const profileRes = await profileAPI.get();
+            const rawResumeData = profileRes.data.resumeData || profileRes.data.profile?.resumeData;
+            
+            if (!rawResumeData) {
+                setCustomizeError("No resume data found. Please complete your profile first.");
+                setIsCustomizingResume(false);
+                return;
+            }
+
+            const response = await resumeAPI.customize({
+                resume_data: rawResumeData,
+                job_description: applyingTo.description || applyingTo.title
+            });
+            setCustomizedResume({
+                data: response.data.data,
+                rawData: rawResumeData,
+                newTotalScore: response.data.new_total_score,
+                newMatchScore: response.data.new_match_score
+            });
+            setResumeSelection('tailored');
+        } catch (err) {
+            setCustomizeError(err.response?.data?.detail || 'Failed to customize resume');
+        } finally {
+            setIsCustomizingResume(false);
         }
     };
 
@@ -652,6 +889,12 @@ function SearcherDashboard() {
                         {/* Tabs */}
                         <div style={styles.tabs}>
                             <button
+                                style={{ ...styles.tab, ...(activeTab === 'for-you' ? styles.tabActive : {}) }}
+                                onClick={() => setActiveTab('for-you')}
+                            >
+                                <Award size={16} /> For You
+                            </button>
+                            <button
                                 style={{ ...styles.tab, ...(activeTab === 'browse' ? styles.tabActive : {}) }}
                                 onClick={() => setActiveTab('browse')}
                             >
@@ -663,7 +906,130 @@ function SearcherDashboard() {
                             >
                                 <Send size={16} /> My Applications ({applications.length})
                             </button>
+                            <button
+                                style={{ ...styles.tab, ...(activeTab === 'saved-external' ? styles.tabActive : {}) }}
+                                onClick={() => setActiveTab('saved-external')}
+                            >
+                                🔖 Saved Web Jobs
+                            </button>
                         </div>
+
+                        {activeTab === 'for-you' && (
+                            <>
+                                {loading ? (
+                                    <div style={styles.loading}>
+                                        <div style={styles.spinner} />
+                                    </div>
+                                ) : recommendedJobs.length === 0 ? (
+                                    <div style={styles.emptyState}>
+                                        <TrendingUp size={40} color="#9CA3AF" />
+                                        <h3 style={{ marginTop: '16px', color: '#374151' }}>No Recommendations Yet</h3>
+                                        <p>Start interacting with jobs (view, click, like, apply) to build your customized feed!</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div style={{ marginBottom: '16px', fontSize: '14px', color: '#6B7280' }}>
+                                            Personalized recommendations based on your profile and activity.
+                                        </div>
+                                        {recommendedJobs.map(job => {
+                                            const matchColors = getMatchColor(job.match_percentage || 0);
+                                            const applied = isApplied(job.id);
+                                            const isLiked = likedJobs.has(job.id);
+                                            return (
+                                                <motion.div
+                                                    key={job.id}
+                                                    style={styles.jobCard}
+                                                    whileHover={{ borderColor: '#3A4B41', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+                                                    onClick={() => handleJobClick(job.id)}
+                                                    onViewportEnter={() => handleInteraction(job.id, 'view')}
+                                                >
+                                                    <div style={styles.jobHeader}>
+                                                        <div>
+                                                            <h3 style={styles.jobTitle}>{job.title}</h3>
+                                                            <div style={styles.jobCompany}>
+                                                                <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                                {job.provider_company || 'Company'}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {job.match_percentage !== null && (
+                                                                <span style={{
+                                                                    ...styles.matchBadge,
+                                                                    background: matchColors.bg,
+                                                                    color: matchColors.color
+                                                                }}>
+                                                                    <Target size={14} style={{ marginRight: '4px' }} />
+                                                                    {job.match_percentage}% Match
+                                                                </span>
+                                                            )}
+                                                            <button 
+                                                                onClick={(e) => toggleLike(e, job.id)}
+                                                                style={{
+                                                                    background: 'none', border: 'none', cursor: 'pointer',
+                                                                    color: isLiked ? '#E11D48' : '#9CA3AF',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    padding: '4px'
+                                                                }}
+                                                            >
+                                                                <svg width="20" height="20" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={styles.jobMeta}>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <MapPin size={14} /> {job.location || 'Remote'}
+                                                        </span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Clock size={14} /> {job.employment_type}
+                                                        </span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Briefcase size={14} /> {job.required_experience}
+                                                        </span>
+                                                        {job.salary_range && (
+                                                            <span style={styles.jobMetaItem}>
+                                                                <DollarSign size={14} />
+                                                                ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {job.required_skills?.length > 0 && (
+                                                        <div style={styles.skillTags}>
+                                                            {job.required_skills.slice(0, 5).map((skill, i) => (
+                                                                <span key={i} style={styles.skillTag}>{skill}</span>
+                                                            ))}
+                                                            {job.required_skills.length > 5 && (
+                                                                <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    <div style={styles.jobActions}>
+                                                        {applied ? (
+                                                            <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }} onClick={(e) => e.stopPropagation()}>
+                                                                <CheckCircle size={16} /> Applied
+                                                            </button>
+                                                        ) : (
+                                                            <motion.button
+                                                                style={{ ...styles.actionBtn, ...styles.primaryBtn }}
+                                                                onClick={(e) => { e.stopPropagation(); setApplyingTo(job); }}
+                                                                whileHover={{ scale: 1.02 }}
+                                                                whileTap={{ scale: 0.98 }}
+                                                            >
+                                                                <Send size={16} /> Apply Now
+                                                            </motion.button>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </>
+                                )}
+                            </>
+                        )}
 
                         {activeTab === 'browse' && (
                             <>
@@ -762,83 +1128,101 @@ function SearcherDashboard() {
                                         </button>
                                     </div>
                                 ) : (
-                                    jobs.map(job => {
-                                        const matchColors = getMatchColor(job.match_percentage || 0);
-                                        const applied = isApplied(job.id);
-                                        return (
-                                            <motion.div
-                                                key={job.id}
-                                                style={styles.jobCard}
-                                                whileHover={{ borderColor: '#3A4B41' }}
-                                            >
-                                                <div style={styles.jobHeader}>
-                                                    <div>
-                                                        <h3 style={styles.jobTitle}>{job.title}</h3>
-                                                        <div style={styles.jobCompany}>
-                                                            <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                                            {job.provider_company || 'Company'}
+                                        jobs.map(job => {
+                                            const matchColors = getMatchColor(job.match_percentage || 0);
+                                            const applied = isApplied(job.id);
+                                            const isLiked = likedJobs.has(job.id);
+                                            return (
+                                                <motion.div
+                                                    key={job.id}
+                                                    style={styles.jobCard}
+                                                    whileHover={{ borderColor: '#3A4B41' }}
+                                                    onClick={() => handleJobClick(job.id)}
+                                                    onViewportEnter={() => handleInteraction(job.id, 'view')}
+                                                >
+                                                    <div style={styles.jobHeader}>
+                                                        <div>
+                                                            <h3 style={styles.jobTitle}>{job.title}</h3>
+                                                            <div style={styles.jobCompany}>
+                                                                <Building size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                                                {job.provider_company || 'Company'}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {job.match_percentage !== null && (
+                                                                <span style={{
+                                                                    ...styles.matchBadge,
+                                                                    background: matchColors.bg,
+                                                                    color: matchColors.color
+                                                                }}>
+                                                                    <Target size={14} style={{ marginRight: '4px' }} />
+                                                                    {job.match_percentage}% Match
+                                                                </span>
+                                                            )}
+                                                            <button 
+                                                                onClick={(e) => toggleLike(e, job.id)}
+                                                                style={{
+                                                                    background: 'none', border: 'none', cursor: 'pointer',
+                                                                    color: isLiked ? '#E11D48' : '#9CA3AF',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    padding: '4px'
+                                                                }}
+                                                            >
+                                                                <svg width="20" height="20" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                                </svg>
+                                                            </button>
                                                         </div>
                                                     </div>
-                                                    {job.match_percentage !== null && (
-                                                        <span style={{
-                                                            ...styles.matchBadge,
-                                                            background: matchColors.bg,
-                                                            color: matchColors.color
-                                                        }}>
-                                                            <Target size={14} style={{ marginRight: '4px' }} />
-                                                            {job.match_percentage}% Match
-                                                        </span>
-                                                    )}
-                                                </div>
 
-                                                <div style={styles.jobMeta}>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <MapPin size={14} /> {job.location || 'Remote'}
-                                                    </span>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <Clock size={14} /> {job.employment_type}
-                                                    </span>
-                                                    <span style={styles.jobMetaItem}>
-                                                        <Briefcase size={14} /> {job.required_experience}
-                                                    </span>
-                                                    {job.salary_range && (
+                                                    <div style={styles.jobMeta}>
                                                         <span style={styles.jobMetaItem}>
-                                                            <DollarSign size={14} />
-                                                            ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
+                                                            <MapPin size={14} /> {job.location || 'Remote'}
                                                         </span>
-                                                    )}
-                                                </div>
-
-                                                {job.required_skills?.length > 0 && (
-                                                    <div style={styles.skillTags}>
-                                                        {job.required_skills.slice(0, 5).map((skill, i) => (
-                                                            <span key={i} style={styles.skillTag}>{skill}</span>
-                                                        ))}
-                                                        {job.required_skills.length > 5 && (
-                                                            <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Clock size={14} /> {job.employment_type}
+                                                        </span>
+                                                        <span style={styles.jobMetaItem}>
+                                                            <Briefcase size={14} /> {job.required_experience}
+                                                        </span>
+                                                        {job.salary_range && (
+                                                            <span style={styles.jobMetaItem}>
+                                                                <DollarSign size={14} />
+                                                                ₹{job.salary_range.min?.toLocaleString()} - ₹{job.salary_range.max?.toLocaleString()}
+                                                            </span>
                                                         )}
                                                     </div>
-                                                )}
 
-                                                <div style={styles.jobActions}>
-                                                    {applied ? (
-                                                        <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }}>
-                                                            <CheckCircle size={16} /> Applied
-                                                        </button>
-                                                    ) : (
-                                                        <motion.button
-                                                            style={{ ...styles.actionBtn, ...styles.primaryBtn }}
-                                                            onClick={() => setApplyingTo(job)}
-                                                            whileHover={{ scale: 1.02 }}
-                                                            whileTap={{ scale: 0.98 }}
-                                                        >
-                                                            <Send size={16} /> Apply Now
-                                                        </motion.button>
+                                                    {job.required_skills?.length > 0 && (
+                                                        <div style={styles.skillTags}>
+                                                            {job.required_skills.slice(0, 5).map((skill, i) => (
+                                                                <span key={i} style={styles.skillTag}>{skill}</span>
+                                                            ))}
+                                                            {job.required_skills.length > 5 && (
+                                                                <span style={styles.skillTag}>+{job.required_skills.length - 5}</span>
+                                                            )}
+                                                        </div>
                                                     )}
-                                                </div>
-                                            </motion.div>
-                                        );
-                                    })
+
+                                                    <div style={styles.jobActions}>
+                                                        {applied ? (
+                                                            <button style={{ ...styles.actionBtn, background: '#D1FAE5', color: '#059669', cursor: 'default' }} onClick={(e) => e.stopPropagation()}>
+                                                                <CheckCircle size={16} /> Applied
+                                                            </button>
+                                                        ) : (
+                                                            <motion.button
+                                                                style={{ ...styles.actionBtn, ...styles.primaryBtn }}
+                                                                onClick={(e) => { e.stopPropagation(); setApplyingTo(job); }}
+                                                                whileHover={{ scale: 1.02 }}
+                                                                whileTap={{ scale: 0.98 }}
+                                                            >
+                                                                <Send size={16} /> Apply Now
+                                                            </motion.button>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })
                                 )}
 
                                 {/* ─── AI Web Search Results ─── */}
@@ -942,6 +1326,30 @@ function SearcherDashboard() {
                                                     >
                                                         <ChevronRight size={16} /> Apply on {result.source}
                                                     </a>
+                                                    {/* Save button */}
+                                                    <button
+                                                        onClick={() => handleWebSave(result)}
+                                                        disabled={webActionLoading.has(getWebExtId(result))}
+                                                        style={{
+                                                            ...styles.actionBtn,
+                                                            background: webSavedSet.has(getWebExtId(result)) ? '#FEF3C7' : '#F3F4F6',
+                                                            color: webSavedSet.has(getWebExtId(result)) ? '#D97706' : '#374151',
+                                                        }}
+                                                    >
+                                                        {webSavedSet.has(getWebExtId(result)) ? '🔖 Saved' : '🔖 Save'}
+                                                    </button>
+                                                    {/* Mark Applied */}
+                                                    <button
+                                                        onClick={() => handleWebMarkApplied(result)}
+                                                        disabled={webActionLoading.has(getWebExtId(result))}
+                                                        style={{
+                                                            ...styles.actionBtn,
+                                                            background: webAppliedSet.has(getWebExtId(result)) ? '#D1FAE5' : '#F3F4F6',
+                                                            color: webAppliedSet.has(getWebExtId(result)) ? '#059669' : '#374151',
+                                                        }}
+                                                    >
+                                                        {webAppliedSet.has(getWebExtId(result)) ? '✅ Applied' : '✅ Mark Applied'}
+                                                    </button>
                                                 </div>
                                             </motion.div>
                                         ))}
@@ -992,6 +1400,61 @@ function SearcherDashboard() {
                                             </div>
                                         );
                                     })
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'saved-external' && (
+                            <>
+                                <div style={{ marginBottom: '16px', fontSize: '14px', color: '#6B7280' }}>
+                                    Jobs you saved or marked as applied from external platforms.
+                                </div>
+                                {externalLoading ? (
+                                    <div style={styles.loading}><div style={styles.spinner} /></div>
+                                ) : externalJobs.length === 0 ? (
+                                    <div style={styles.emptyState}>
+                                        <span style={{ fontSize: '40px' }}>🔖</span>
+                                        <h3 style={{ marginTop: '16px', color: '#374151' }}>No saved web jobs yet</h3>
+                                        <p>Use the Save button on web search results to bookmark jobs for later.</p>
+                                    </div>
+                                ) : (
+                                    externalJobs.map(job => (
+                                        <div key={job.id} style={{ ...styles.applicationCard, flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
+                                                <div>
+                                                    <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#3A4B41', marginBottom: '2px' }}>{job.title}</h4>
+                                                    <p style={{ fontSize: '13px', color: '#6B7280' }}>
+                                                        {job.company} · {job.source} {job.location && `· ${job.location}`}
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    {job.saved && (
+                                                        <span style={{ ...styles.statusBadge, background: '#FEF3C7', color: '#D97706' }}>
+                                                            🔖 Saved
+                                                        </span>
+                                                    )}
+                                                    {job.applied && (
+                                                        <span style={{ ...styles.statusBadge, background: '#D1FAE5', color: '#059669' }}>
+                                                            ✅ Applied
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <a
+                                                    href={job.apply_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{ ...styles.actionBtn, ...styles.primaryBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                                >
+                                                    <ChevronRight size={14} /> Open on {job.source}
+                                                </a>
+                                                {job.salary && (
+                                                    <span style={{ ...styles.actionBtn, background: '#F3F4F6', color: '#374151' }}>💰 {job.salary}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
                                 )}
                             </>
                         )}
@@ -1168,7 +1631,17 @@ function SearcherDashboard() {
 
             {/* Apply Modal */}
             {applyingTo && (
-                <div style={styles.modal} onClick={() => setApplyingTo(null)}>
+                <div 
+                    ref={modalRef}
+                    style={styles.modal} 
+                    onClick={() => { 
+                        setApplyingTo(null); 
+                        setCustomizedResume(null); 
+                        setCustomizeError(''); 
+                        setResumeSelection('original');
+                        setCustomResumeFile(null);
+                    }}
+                >
                     <motion.div
                         style={styles.modalContent}
                         initial={{ scale: 0.9, opacity: 0 }}
@@ -1189,12 +1662,24 @@ function SearcherDashboard() {
                             marginBottom: '24px'
                         }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                <span>Your Resume Score:</span>
-                                <strong>{score?.total_score || 0}/100</strong>
+                                <span>{customizedResume ? 'Tailored Resume Score:' : 'Your Resume Score:'}</span>
+                                <strong>
+                                    {customizedResume ? (
+                                        <span style={{ color: '#059669' }}>{customizedResume.newTotalScore}/100</span>
+                                    ) : (
+                                        <span>{score?.total_score || 0}/100</span>
+                                    )}
+                                </strong>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>Match Percentage:</span>
-                                <strong style={{ color: '#059669' }}>{applyingTo.match_percentage || 0}%</strong>
+                                <strong>
+                                    {customizedResume ? (
+                                        <span style={{ color: '#059669' }}>{customizedResume.newMatchScore}%</span>
+                                    ) : (
+                                        <span style={{ color: '#059669' }}>{applyingTo.match_percentage || 0}%</span>
+                                    )}
+                                </strong>
                             </div>
                         </div>
 
@@ -1260,25 +1745,233 @@ function SearcherDashboard() {
                             )}
                         </div>
 
+                        {/* Resume Customization Section */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <div style={{ fontWeight: '600', color: '#374151', fontSize: '15px' }}>Tailored Resume</div>
+                                <button
+                                    onClick={handleGenerateCustomizedResume}
+                                    disabled={isCustomizingResume}
+                                    style={{
+                                        ...styles.actionBtn,
+                                        padding: '8px 16px',
+                                        background: isCustomizingResume ? '#E5E7EB' : '#3A4B41',
+                                        color: isCustomizingResume ? '#9CA3AF' : 'white',
+                                        fontSize: '13px'
+                                    }}
+                                >
+                                    <FileText size={14} />
+                                    {isCustomizingResume ? 'Generating...' : 'Generate Customized Resume'}
+                                </button>
+                            </div>
+                            
+                            {customizeError && (
+                                <div style={{ padding: '12px', background: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>
+                                    {customizeError}
+                                </div>
+                            )}
+
+                            {(isCustomizingResume || customizedResume) && (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                                        {customizedResume && (
+                                            <button
+                                                onClick={handleDownloadPDF}
+                                                style={{
+                                                    background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer',
+                                                    fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px'
+                                                }}
+                                            >
+                                                <Download size={14} /> Download PDF
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ border: '1px solid #E5E7EB', borderRadius: '8px', overflow: 'hidden' }}>
+                                        <CustomizedResumePreview 
+                                            data={customizedResume?.data} 
+                                            rawData={customizedResume?.rawData} 
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Resume Selection Section */}
+                        <div style={{ marginBottom: '24px', padding: '16px', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
+                            <div style={{ fontWeight: '600', color: '#374151', fontSize: '15px', marginBottom: '12px' }}>Select Resume to Submit</div>
+                            
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer' }}>
+                                <input type="radio" name="resumeSelection" value="original" checked={resumeSelection === 'original'} onChange={() => setResumeSelection('original')} />
+                                <span style={{ fontSize: '14px', color: '#4B5563' }}>Original Profile Resume</span>
+                            </label>
+                            
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: customizedResume ? 'pointer' : 'not-allowed', opacity: customizedResume ? 1 : 0.5 }}>
+                                <input type="radio" name="resumeSelection" value="tailored" checked={resumeSelection === 'tailored'} onChange={() => setResumeSelection('tailored')} disabled={!customizedResume} />
+                                <span style={{ fontSize: '14px', color: '#4B5563' }}>Tailored Resume (Generated Above)</span>
+                            </label>
+                            
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: resumeSelection === 'custom' ? '12px' : '0' }}>
+                                <input type="radio" name="resumeSelection" value="custom" checked={resumeSelection === 'custom'} onChange={() => setResumeSelection('custom')} />
+                                <span style={{ fontSize: '14px', color: '#4B5563' }}>Upload Custom Resume (PDF)</span>
+                            </label>
+                            
+                            {resumeSelection === 'custom' && (
+                                <div style={{ paddingLeft: '24px' }}>
+                                    <input 
+                                        type="file" 
+                                        accept=".pdf"
+                                        onChange={(e) => setCustomResumeFile(e.target.files[0])}
+                                        style={{ fontSize: '13px' }}
+                                    />
+                                    {customResumeFile && (
+                                        <div style={{ fontSize: '12px', color: '#059669', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Check size={12} /> Ready to upload
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                             <button
                                 style={{ ...styles.actionBtn, ...styles.secondaryBtn }}
-                                onClick={() => setApplyingTo(null)}
+                                onClick={() => { 
+                                    setApplyingTo(null); 
+                                    setCustomizedResume(null); 
+                                    setCustomizeError('');
+                                    setResumeSelection('original');
+                                    setCustomResumeFile(null);
+                                }}
+                                disabled={isSubmittingApp}
                             >
                                 Cancel
                             </button>
-                            <motion.button
-                                style={{ ...styles.actionBtn, ...styles.primaryBtn }}
-                                onClick={() => handleApply(applyingTo.id)}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                            <button
+                                style={{ ...styles.actionBtn, opacity: isSubmittingApp ? 0.7 : 1 }}
+                                onClick={handleSubmitApplication}
+                                disabled={isSubmittingApp || (resumeSelection === 'custom' && !customResumeFile)}
                             >
-                                <Send size={16} /> Submit Application
-                            </motion.button>
+                                <Send size={16} />
+                                {isSubmittingApp ? 'Submitting...' : 'Submit Application'}
+                            </button>
                         </div>
                     </motion.div>
                 </div>
             )}
+
+            {/* Success Animation Overlay */}
+            <AnimatePresence>
+                {showSuccess && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(58, 75, 65, 0.95)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 2000,
+                            backdropFilter: 'blur(10px)',
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: 'spring', damping: 12, stiffness: 100 }}
+                            style={{
+                                width: '120px',
+                                height: '120px',
+                                borderRadius: '50%',
+                                background: '#E6CFA6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: '24px',
+                                boxShadow: '0 0 50px rgba(230, 207, 166, 0.4)',
+                            }}
+                        >
+                            <Check size={64} color="#3A4B41" strokeWidth={4} />
+                        </motion.div>
+
+                        <motion.h2
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            style={{
+                                fontFamily: "'Bebas Neue', sans-serif",
+                                fontSize: '4rem',
+                                color: '#E6CFA6',
+                                letterSpacing: '2px',
+                                margin: 0,
+                                textAlign: 'center'
+                            }}
+                        >
+                            APPLICATION SUBMITTED!
+                        </motion.h2>
+
+                        <motion.p
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.5 }}
+                            style={{
+                                color: 'rgba(230, 207, 166, 0.8)',
+                                fontSize: '1.25rem',
+                                marginTop: '12px',
+                                textAlign: 'center',
+                                maxWidth: '80%'
+                            }}
+                        >
+                            Your application has been delivered to the hiring team.
+                        </motion.p>
+
+                        <motion.button
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.8 }}
+                            whileHover={{ scale: 1.05, background: '#E6CFA6', color: '#3A4B41' }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setShowSuccess(false)}
+                            style={{
+                                marginTop: '48px',
+                                padding: '14px 40px',
+                                background: 'transparent',
+                                border: '2px solid #E6CFA6',
+                                color: '#E6CFA6',
+                                borderRadius: '100px',
+                                fontSize: '1.1rem',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                letterSpacing: '0.5px'
+                            }}
+                        >
+                            BACK TO DASHBOARD
+                        </motion.button>
+                        
+                        {/* Decorative flying papers */}
+                        <motion.div
+                            initial={{ x: -100, y: 100, opacity: 0 }}
+                            animate={{ x: 500, y: -500, opacity: 1 }}
+                            transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                            style={{ position: 'absolute', left: '20%', bottom: '20%', color: 'rgba(230, 207, 166, 0.2)', pointerEvents: 'none' }}
+                        >
+                            <Send size={40} />
+                        </motion.div>
+                        <motion.div
+                            initial={{ x: 100, y: 100, opacity: 0 }}
+                            animate={{ x: -500, y: -500, opacity: 1 }}
+                            transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 0.5 }}
+                            style={{ position: 'absolute', right: '25%', bottom: '15%', color: 'rgba(230, 207, 166, 0.15)', pointerEvents: 'none' }}
+                        >
+                            <Send size={32} />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <style>{`
                 @keyframes spin {

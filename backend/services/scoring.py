@@ -267,6 +267,7 @@ def _calculate_keyword_score(data: Dict, target_role: str, feedback: List) -> in
     return score
 
 
+
 def _calculate_quantification(data: Dict, feedback: List) -> int:
     """Check for quantified achievements with numbers and metrics."""
     experience_text = ""
@@ -336,6 +337,7 @@ def _calculate_action_verbs(data: Dict, feedback: List) -> int:
         })
 
     return score
+
 
 
 def _calculate_grammar_score(data: Dict, feedback: List) -> int:

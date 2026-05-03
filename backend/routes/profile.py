@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from models.user import UserUpdate, UserResponse, UserRole, UserStatus, UserProfile, UserScore
 from auth.dependencies import get_current_user
 from database import Database, USERS_COLLECTION
+
 from services.scoring import calculate_resume_score, calculate_resume_score_vs_jd
 from services.ml import MLService
 

@@ -13,6 +13,8 @@ from bson import ObjectId
 from typing import Optional
 import re
 
+from services.applicant_ranker import get_ranker, STATUS_REWARDS
+
 from models.user import UserRole
 from models.application import (
     ApplicationCreate, ApplicationStatusUpdate, ApplicationResponse,
@@ -38,31 +40,34 @@ def _normalize_skill(s: str) -> str:
 
 def calculate_match_percentage(user: dict, job: dict) -> int:
     """
-    Calculate match % between user skills and job requirements using normalized matching.
-    Mirrors the implementation in jobs.py > calculate_match_details.
+    RL-powered match score via ApplicantRanker MLP.
+    Falls back to keyword overlap if the ranker is unavailable.
+    This function signature is kept identical so existing callers
+    (e.g. jobs.py) continue to work without changes.
     """
-    user_skills_raw = []
-    resume_data = user.get("profile", {}).get("resumeData")
-    if resume_data:
-        skills = resume_data.get("skills", {})
-        user_skills_raw.extend(skills.get("technical", []))
-        user_skills_raw.extend(skills.get("tools", []))
-
-    job_skills_raw = job.get("required_skills", [])
-
-    if not job_skills_raw:
-        return 75  # No requirements specified — default to 75%
-
-    matched = 0
-    for skill in job_skills_raw:
-        skill_norm = _normalize_skill(skill)
-        if any(
-            skill_norm in _normalize_skill(us) or _normalize_skill(us) in skill_norm
-            for us in user_skills_raw if us
-        ):
-            matched += 1
-
-    return min(100, int((matched / len(job_skills_raw)) * 100))
+    try:
+        ranker = get_ranker()
+        return ranker.score(user, job, has_cover_letter=False)
+    except Exception:
+        # Fallback: original keyword-overlap formula
+        user_skills_raw = []
+        resume_data = user.get("profile", {}).get("resumeData")
+        if resume_data:
+            skills = resume_data.get("skills", {})
+            user_skills_raw.extend(skills.get("technical", []))
+            user_skills_raw.extend(skills.get("tools", []))
+        job_skills_raw = job.get("required_skills", [])
+        if not job_skills_raw:
+            return 75
+        matched = sum(
+            1 for skill in job_skills_raw
+            if any(
+                _normalize_skill(skill) in _normalize_skill(us)
+                or _normalize_skill(us) in _normalize_skill(skill)
+                for us in user_skills_raw if us
+            )
+        )
+        return min(100, int((matched / len(job_skills_raw)) * 100))
 
 
 # ── Helper: batch fetch by IDs ────────────────────────────────────────────────
@@ -128,17 +133,32 @@ async def apply_to_job(
             detail="You have already applied to this job"
         )
 
-    match_pct = calculate_match_percentage(current_user, job)
+    # ── RL Ranker: score + capture feature vector for later online update ──
+    try:
+        ranker = get_ranker()
+        has_cl = bool(cover_letter and len(cover_letter.strip()) >= 50)
+        match_pct, resume_features = ranker.score_with_features(
+            current_user, job, has_cover_letter=has_cl
+        )
+    except Exception:
+        match_pct = calculate_match_percentage(current_user, job)
+        resume_features = []
 
     now = datetime.utcnow()
+    
+    # Use customized resume if provided, otherwise default to profile resume
+    resume_snapshot = application_data.customized_resume if application_data.customized_resume else current_user.get("profile", {}).get("resumeData")
+
     application_doc = {
         "job_id": application_data.job_id,
         "applicant_id": str(current_user["_id"]),
         "provider_id": job["provider_id"],
         "status": ApplicationStatus.PENDING.value,
         "match_percentage": match_pct,
-        "resume_snapshot": current_user.get("profile", {}).get("resumeData"),
+        "resume_snapshot": resume_snapshot,
+        "resume_features": resume_features,   # 8-dim vector for RL update
         "cover_letter": cover_letter,
+        "application_bio": application_data.application_bio,
         "created_at": now,
         "updated_at": now
     }
@@ -165,6 +185,8 @@ async def apply_to_job(
         status=ApplicationStatus.PENDING,
         match_percentage=match_pct,
         cover_letter=cover_letter,
+        resume_snapshot=resume_snapshot,
+        application_bio=application_data.application_bio,
         created_at=now
     )
 
@@ -228,6 +250,8 @@ async def list_my_applications(
             status=ApplicationStatus(app["status"]),
             match_percentage=app.get("match_percentage", 0),
             cover_letter=app.get("cover_letter"),
+            resume_snapshot=app.get("resume_snapshot"),
+            application_bio=app.get("application_bio"),
             created_at=app["created_at"]
         ))
 
@@ -278,6 +302,8 @@ async def get_application(
         status=ApplicationStatus(app["status"]),
         match_percentage=app.get("match_percentage", 0),
         cover_letter=app.get("cover_letter"),
+        resume_snapshot=app.get("resume_snapshot"),
+        application_bio=app.get("application_bio"),
         created_at=app["created_at"]
     )
 
@@ -309,6 +335,23 @@ async def update_application_status(
             "updated_at": datetime.utcnow()
         }}
     )
+
+    # ── Online REINFORCE update ────────────────────────────────────────────
+    # Only fire when the provider gives a meaningful signal (accept/reject).
+    new_status = status_update.status.value
+    if new_status in STATUS_REWARDS:
+        reward = STATUS_REWARDS[new_status]
+        stored_features = app.get("resume_features")
+        if stored_features:
+            try:
+                ranker = get_ranker()
+                ranker.online_update(stored_features, reward)
+            except Exception as rl_exc:
+                import logging
+                logging.getLogger(__name__).error(
+                    "ApplicantRanker online_update failed: %s", rl_exc
+                )
+        # else: old application before RL was added — no features stored, skip
 
     return {"message": f"Application status updated to {status_update.status.value}"}
 

@@ -19,6 +19,8 @@ class ApplicationStatus(str, Enum):
 class ApplicationCreate(BaseModel):
     job_id: str
     cover_letter: Optional[str] = None
+    customized_resume: Optional[Dict[str, Any]] = None
+    application_bio: Optional[str] = None
 
 
 class ApplicationStatusUpdate(BaseModel):
@@ -53,6 +55,8 @@ class ApplicationResponse(BaseModel):
     status: ApplicationStatus
     match_percentage: int
     cover_letter: Optional[str] = None
+    resume_snapshot: Optional[Dict[str, Any]] = None
+    application_bio: Optional[str] = None
     created_at: datetime
 
     class Config:
