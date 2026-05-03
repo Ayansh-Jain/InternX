@@ -32,8 +32,9 @@ class RecommendationEngine:
         Returns a dictionary mapping strings to indices.
         """
         current_time = time.time()
-        if self._vocab_cache and (current_time - self._vocab_cache_time) < self._vocab_cache_ttl:
-            return self._vocab_cache
+        # Disable cache for debugging
+        # if self._vocab_cache and (current_time - self._vocab_cache_time) < self._vocab_cache_ttl:
+        #     return self._vocab_cache
 
         vocab_set = set()
         for job in jobs:
@@ -51,6 +52,13 @@ class RecommendationEngine:
             if location:
                 vocab_set.add(f"loc_{self._normalize_text(location)}")
                 
+            # Add title terms
+            title = job.get("title", "")
+            if title:
+                for term in self._normalize_text(title).split():
+                    if len(term) > 2: # Ignore short words like 'of', 'in', 'at'
+                        vocab_set.add(f"title_{term}")
+
             # Add experience
             exp = job.get("required_experience")
             if exp:
@@ -94,6 +102,14 @@ class RecommendationEngine:
             if term in vocab:
                 vector[vocab[term]] = 1.0
                 
+        # Add title terms with higher weight
+        title = job.get("title", "")
+        if title:
+            for term in self._normalize_text(title).split():
+                term_key = f"title_{term}"
+                if term_key in vocab:
+                    vector[vocab[term_key]] = 2.0
+
         # Add experience
         exp = job.get("required_experience")
         if exp:
@@ -117,13 +133,13 @@ class RecommendationEngine:
     ) -> List[float]:
         """
         Update a user's preference vector based on an interaction.
-        Weights: view=1, click=2, apply=3, like=4.
+        Weights: view=0, click=0, apply=0.5, like=5.0 (per user request to only use likes).
         """
         weights = {
-            "view": 1.0,
-            "click": 2.0,
-            "apply": 3.0,
-            "like": 4.0
+            "view": 0.0,
+            "click": 0.0,
+            "apply": 0.5,
+            "like": 5.0
         }
         
         weight = weights.get(action, 1.0)
@@ -168,6 +184,7 @@ class RecommendationEngine:
         valid_jobs = []
         job_vectors = []
         
+        logger.info(f"Processing {len(jobs)} jobs for recommendations. applied_count={len(applied_job_ids)}")
         for job in jobs:
             job_id_str = str(job.get("_id"))
             if job_id_str not in applied_job_ids:
@@ -175,6 +192,13 @@ class RecommendationEngine:
                 if len(vector) == vocab_size:
                     valid_jobs.append(job)
                     job_vectors.append(vector)
+                else:
+                    logger.warning(f"Job {job_id_str} vector size mismatch: {len(vector)} vs {vocab_size}")
+            else:
+                # logger.debug(f"Job {job_id_str} already applied")
+                pass
+
+        logger.info(f"Found {len(valid_jobs)} valid jobs after filtering")
 
         if not valid_jobs:
             return []
@@ -196,38 +220,30 @@ class RecommendationEngine:
         for job, job_vec in zip(valid_jobs, job_vectors):
             job_np = np.array(job_vec, dtype=np.float64)
 
-            # Cosine similarity → [0, 1] (already in [-1,1], clip low end)
+            # Cosine similarity → [0, 1]
             cos_sim = float(cosine_similarity([user_np], [job_np])[0][0])
-            cos_norm = float(np.clip((cos_sim + 1) / 2, 0, 1))
+            # Since vectors are non-negative, cos_sim is in [0, 1]
+            cos_norm = float(np.clip(cos_sim, 0, 1))
 
-            # LinUCB UCB score; normalise with sigmoid so it's on [0,1]
+            # LinUCB UCB score
             job_id_str = str(job.get("_id", ""))
             context = np.concatenate([user_np, job_np])
             ucb_raw = bandit.score(job_id_str, context)
-            ucb_norm = float(1 / (1 + np.exp(-ucb_raw)))  # sigmoid
+            
+            # Normalise UCB score more aggressively to show differences
+            # If ucb_raw is around self.alpha (0.5), it means it's mostly exploration.
+            # We want exploitation (exploit > 0) to push it higher.
+            ucb_norm = float(np.tanh(max(0, ucb_raw))) 
 
             # Blended final score scaled to 0-100
-            final = 0.4 * cos_norm + 0.6 * ucb_norm
+            # Increase cosine weight slightly as it's more reliable for "similarity"
+            final = 0.5 * cos_norm + 0.5 * ucb_norm
             scored_jobs_raw.append((job, int(round(final * 100))))
 
         scored_jobs = scored_jobs_raw
         scored_jobs.sort(key=lambda x: x[1], reverse=True)
         
-        # 80/20 split: 80% top matches, 20% random from the rest (exploration)
-        top_count = int(limit * 0.8)
-        random_count = limit - top_count
-        
-        top_jobs = scored_jobs[:top_count]
-        remaining_jobs = scored_jobs[top_count:]
-        
-        final_jobs = top_jobs
-        if remaining_jobs and random_count > 0:
-            # Select random jobs with probability proportional to their score (roulette wheel selection)
-            # or simply uniform random to ensure exploration
-            np.random.shuffle(remaining_jobs)
-            final_jobs.extend(remaining_jobs[:random_count])
-            
-        return final_jobs[:limit]
+        return [item for item in scored_jobs[:limit]]
 
 class RecommendationCache:
     """Simple in-memory TTL cache for recommendations."""
@@ -258,3 +274,8 @@ class RecommendationCache:
     def invalidate(self, key: str):
         if key in self._cache:
             del self._cache[key]
+
+    def invalidate_prefix(self, prefix: str):
+        keys_to_delete = [k for k in self._cache if k.startswith(prefix)]
+        for k in keys_to_delete:
+            del self._cache[k]

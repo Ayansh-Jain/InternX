@@ -137,6 +137,8 @@ export const externalJobsAPI = {
 export const recommendationsAPI = {
     getFeed: (params) => api.get('/recommendations/feed', { params }),
     interact: (data) => api.post('/recommendations/interact', data),
+    getLikes: () => api.get('/recommendations/likes'),
+    unlike: (jobId) => api.delete(`/recommendations/likes/${jobId}`),
 };
 
 // Resume API

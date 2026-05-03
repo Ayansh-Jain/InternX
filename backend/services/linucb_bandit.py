@@ -180,19 +180,23 @@ class LinUCBBandit:
         return self._arms[job_id]
 
     def _maybe_resize(self, d: int):
-        """If vocab grew, update context_dim (new arms pick up the right size)."""
+        """If vocab grew, update context_dim and reset arms because indices shifted."""
         if d != self.context_dim and d > 0:
             logger.debug("LinUCB context_dim updated %d → %d", self.context_dim, d)
             self.context_dim = d
+            # We must clear old arms because vocabulary indices shifted
+            # and old A_inv matrices will crash with shape mismatch
+            with self._arms_lock:
+                self._arms.clear()
 
 
 # ── Reward mapping ────────────────────────────────────────────────────────────
 
 INTERACTION_REWARDS: Dict[str, float] = {
-    "view":  0.2,
-    "click": 0.5,
-    "like":  0.8,
-    "apply": 1.0,
+    "view":  0.0,
+    "click": 0.0,
+    "like":  1.0,
+    "apply": 0.8,
 }
 
 

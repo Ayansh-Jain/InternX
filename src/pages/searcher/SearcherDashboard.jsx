@@ -516,14 +516,18 @@ function SearcherDashboard() {
                 if (filters.jobRole) params.search = filters.jobRole; // Combine with search or specific param if available
             }
 
-            const [jobsRes, appsRes, scoreRes] = await Promise.all([
+            const [jobsRes, appsRes, scoreRes, likesRes] = await Promise.all([
                 jobsAPI.list(params),
                 applicationsAPI.list({ limit: 50 }),
-                profileAPI.getScore().catch(() => ({ data: { total_score: 0 } }))
+                profileAPI.getScore().catch(() => ({ data: { total_score: 0 } })),
+                recommendationsAPI.getLikes().catch(() => ({ data: { liked_job_ids: [] } }))
             ]);
             setJobs(jobsRes.data.jobs);
             setApplications(appsRes.data.applications);
             setScore(scoreRes.data);
+            if (likesRes && likesRes.data && likesRes.data.liked_job_ids) {
+                setLikedJobs(new Set(likesRes.data.liked_job_ids));
+            }
 
             if (activeTab === 'for-you') {
                  const recsRes = await recommendationsAPI.getFeed({ limit: 20 });
@@ -572,8 +576,7 @@ function SearcherDashboard() {
             const next = new Set(prev);
             if (next.has(jobId)) {
                 next.delete(jobId);
-                // Depending on requirements, we might not send an API call for 'unlike', 
-                // but we definitely want to log 'like'.
+                recommendationsAPI.unlike(jobId).catch(err => console.error('Failed to unlike', err));
             } else {
                 next.add(jobId);
                 handleInteraction(jobId, 'like');
@@ -892,13 +895,13 @@ function SearcherDashboard() {
                                 style={{ ...styles.tab, ...(activeTab === 'for-you' ? styles.tabActive : {}) }}
                                 onClick={() => setActiveTab('for-you')}
                             >
-                                <Award size={16} /> For You
+                                <Award size={16} /> Recommended Jobs
                             </button>
                             <button
                                 style={{ ...styles.tab, ...(activeTab === 'browse' ? styles.tabActive : {}) }}
                                 onClick={() => setActiveTab('browse')}
                             >
-                                <Briefcase size={16} /> Browse Jobs
+                                <Briefcase size={16} /> All Jobs
                             </button>
                             <button
                                 style={{ ...styles.tab, ...(activeTab === 'applications' ? styles.tabActive : {}) }}
